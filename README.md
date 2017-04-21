@@ -1,21 +1,26 @@
-# ots-tools
+# csv2wiki: CSV->wiki converter
 
+Open source script to convert rows in a CSV file to pages in a wiki.
 
-### Troubleshooting note for csv2wiki
+Right now only [MediaWiki](https://mediawiki.org/) instances are
+supported, but it would not be too hard to extend this to support
+other wiki APIs.  Currently requires Python 2.7; we may switch to
+Python 3.0 later.  Basic usage:
 
-I had to run
+        $ csv2wiki -c CONFIG [OPTIONS] CSV
 
-    $ sudo apt-get install php7.0-mysql
+Run `python ./csv2wiki` to see complete usage.  Summary:
 
-to get MediaWiki's rebuildall.php script to run.  I needed that script
-to make my categories work.
+You create a config file that is specific to the particular CSV and
+destination wiki.  The config file contains various parameters about
+the conversion: wiki URL and login information, which columns in the
+CSV should be included, a template for naming the resultant wiki
+pages, etc.  Then you run the script at the command line, passing the
+config file with the -c option and the CSV file as an argument.
 
+See the [bug
+tracker](https://github.com/OpenTechStrategies/csv2wiki/issues) for
+known issues; pull requests are welcome.
 
-Sources for this solution:
-
-- [Categories aren't working.](https://www.mediawiki.org/wiki/Topic:T6uzpn51mgb8n5sc)
-- [Database connection fails.](https://www.mediawiki.org/wiki/Thread:Project:Support_desk/MediaWiki_upgrade_fails_with_Database_error/reply)
-
-
-Note that the rebuildall.php script seems slow but takes less than 10
-minutes (for me, on a small wiki, at any rate).
+csv2wiki is free software, distributed under the [GNU Affero General
+Public License version 3](LICENSE.md).
