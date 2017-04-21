@@ -426,10 +426,14 @@ class CSVInput():
     """Iterator class encapsulating a CSV file as input."""
     def __init__(self, csv_file, config):
         """Prepare CSV_FILE for input, with delimiters from CONFIG.
-        CONFIG is a dict returned from parse_config_file()."""
+        CONFIG is a dict returned from parse_config_file(), or else
+        it is None, in which case default config values are used."""
         self.csv_reader          = None  # will be csv.reader object
         self.headers             = []
         self.row_count           = None  # will be num rows not counting header
+
+        if config is None: 
+            config = {}
 
         # First get a row count, so we can pad the row number later.
         csv_fh = open(csv_file, 'rb')
@@ -724,7 +728,7 @@ def main():
         usage(errout=True)
         sys.exit(2)
 
-    csv_file = None
+    csv_in = None
     config = None
     wiki_sess = None
     delete_matching = None
@@ -747,13 +751,22 @@ def main():
             sys.stderr.write("ERROR: unrecognized option '%s'\n" % o)
             bad_opt_seen = True
 
-    if bad_opt_seen:
+    if len(args) < 1:
+        sys.stderr.write("ERROR: missing CSV_FILE argument\n")
+        sys.exit(2)
+    elif len(args) > 1:
+        sys.stderr.write("ERROR: too many arguments; expected only CSV_FILE\n")
         sys.exit(2)
 
     if config is None:
         sys.stderr.write("ERROR: missing config file; use -c to supply it\n")
         usage(errout=True)
         sys.exit(2)
+
+    if bad_opt_seen:
+        sys.exit(2)
+
+    csv_in = CSVInput(args[0], config)
 
     wiki_sess = WikiSession(config)
 
@@ -778,8 +791,7 @@ def main():
             usage(errout=True)
             sys.exit(2)
         try:
-            create_pages(wiki_sess, CSVInput(args[0], config),
-                         null_as_value, pare)
+            create_pages(wiki_sess, csv_in, null_as_value, pare)
         except IndexError as err:
             sys.stderr.write("ERROR: '%s'\n" % err)
             usage(errout=True)
