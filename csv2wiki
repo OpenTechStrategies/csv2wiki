@@ -200,6 +200,15 @@ since it's how the config file is indicated in the first place.
                        convert just 1/N rows, spaced evenly across the
                        CSV file and selected deterministically.
 
+  --show-columns       Just print all the column headers in the CSV
+                       (that is, the values in the first row) to
+                       stdout, with each column numbered.  
+
+                       This is a convenience option to aid in writing
+                       a config file, and if passed, must be the only
+                       option, since it just prints information and
+                       exits, without creating any wiki pages.
+
   --delete-matching    See "Page deletion support" section below.
 
   -h | --help          Show usage message and exit without error.
@@ -470,6 +479,12 @@ class CSVInput():
                 # In general, this script needs to DTRT w/ encodings.
                 self.headers[int(col_num) - 1] = new_name
 
+    def show_columns(self, out):
+        """Print this CSV's column names, numbered, to OUT."""
+        fmt = "{:0" + str(len(str(len(self.headers)))) + "}"
+        for i in range(len(self.headers)):
+            out.write("%s) %s\n" % (fmt.format(i + 1), self.headers[i]))
+
     def __iter__(self):
         """Return the underlying iterator for this CSV's rows."""
         return self.csv_reader
@@ -717,12 +732,13 @@ def main():
     try:
         opts, args = getopt.getopt(sys.argv[1:], 
                                    'h?d:c:',
-                                   ("help",
+                                   ["help",
                                     "usage",
                                     "null-as-value",
                                     "pare=",
                                     "delete-matching=",
-                                    "config="))
+                                    "config=",
+                                    "show-columns"])
     except getopt.GetoptError as err:
         sys.stderr.write("ERROR: '%s'\n" % err)
         usage(errout=True)
@@ -735,17 +751,20 @@ def main():
     bad_opt_seen = False
     null_as_value = False
     pare = None
+    show_columns = False
     for o, a in opts:
-        if o in ("-h", "-?", "--help", "--usage"):
+        if o in ("-h", "-?", "--help", "--usage",):
             usage()
             sys.exit(0)
-        elif o in ("-d", "--delete-matching"):
+        elif o in ("-d", "--delete-matching",):
             delete_matching = a
-        elif o in ("--null-as-value"):
+        elif o in ("--null-as-value",):
             null_as_value = True
-        elif o in ("--pare"):
+        elif o in ("--pare",):
             pare = int(a)
-        elif o in ("-c", "--config"):
+        elif o in ("--show-columns",):
+            show_columns = True
+        elif o in ("-c", "--config",):
             config = parse_config_file(a)
         else:
             sys.stderr.write("ERROR: unrecognized option '%s'\n" % o)
@@ -758,8 +777,13 @@ def main():
         sys.stderr.write("ERROR: too many arguments; expected only CSV_FILE\n")
         sys.exit(2)
 
-    if config is None:
+    if config is None and not show_columns:
         sys.stderr.write("ERROR: missing config file; use -c to supply it\n")
+        usage(errout=True)
+        sys.exit(2)
+
+    if show_columns and (config or pare or delete_matching):
+        sys.stderr.write("ERROR: --show-columns precludes any other options\n")
         usage(errout=True)
         sys.exit(2)
 
@@ -767,6 +791,10 @@ def main():
         sys.exit(2)
 
     csv_in = CSVInput(args[0], config)
+
+    if show_columns:
+        csv_in.show_columns(sys.stdout)
+        sys.exit(0)
 
     wiki_sess = WikiSession(config)
 
