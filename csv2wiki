@@ -449,13 +449,10 @@ class CSVInput():
         self.csv_reader = csv.reader(csv_fh,
                                     delimiter=config.get('delimiter', ','),
                                     quotechar=config.get('quotechar', '"'))
-        self.row_count = -1
-        for row in self.csv_reader: 
-            self.row_count += 1
-        csv_fh.close()
-
+        self.row_count = sum(1 for row in self.csv_reader) - 1
+        
         # Reset the reader for our callers.
-        csv_fh = open(csv_file, 'rb')
+        csv_fh.seek(0)
         self.csv_reader = csv.reader(csv_fh,
                                     delimiter=config.get('delimiter', ','),
                                     quotechar=config.get('quotechar', '"'))
