@@ -18,6 +18,10 @@ CSV should be included, a template for naming the resultant wiki
 pages, etc.  Then you run the script at the command line, passing the
 config file with the -c option and the CSV file as an argument.
 
+A sample of csv2wiki in action (along with a config file to drive it)
+can be found in the
+[MacArthur repository](https://github.com/OpenTechStrategies/MacFound).
+
 See the [bug
 tracker](https://github.com/OpenTechStrategies/csv2wiki/issues) for
 known issues; pull requests are welcome.
