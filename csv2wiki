@@ -29,6 +29,10 @@ The common case is to pass a CSV_FILE on the command line; wiki pages
 will then be created (or updated) based on the CSV contents.  (For the
 less common page-deletion case, see section "Page deletion support".)
 
+This script expects the cells in CSV_FILE to contain HTML snippets.
+The cells need not be valid HTML documents, but they should be
+formatted with balanced HTML tags as opposed to, say, Markdown format.
+
 The CONFIG_FILE contains the wiki URL, login information, and various
 other run-time parameters.  It is in standard .ini file format, with
 a sole "[default]" section and the following elements in that section:
