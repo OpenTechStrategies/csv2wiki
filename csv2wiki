@@ -484,7 +484,7 @@ class CSVInput():
         self.row_count           = None  # will be num rows not counting header
         
         self.config = config or {}
-        self.csv_fh = open(csv_file, 'rb')
+        self.csv_fh = open(csv_file)
         self.csv_reader = csv.reader(self.csv_fh,
                             delimiter=self.config.get('delimiter', ','),
                             quotechar=self.config.get('quotechar', '"'))       
