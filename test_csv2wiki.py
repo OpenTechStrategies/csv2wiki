@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 config_fname = "../csv2wiki-config"
 sanitized_fname = "../sanitized-100andchangeExport-all-judges.csv"
@@ -8,15 +8,20 @@ mediawiki instance.  If mediawiki isn't up, these tests will fail.
 
 """
 
+import os
+
 # We named csv2wiki without the .py extension, so these next two lines
 # ares basically just a regular old import:
 import imp
-csv2wiki = imp.load_source('csv2wiki', 'csv2wiki')
+if os.path.isdir('csv2wiki'):
+    csv2wiki = imp.load_source('csv2wiki', 'csv2wiki/csv2wiki')
+else:
+    csv2wiki = imp.load_source('csv2wiki', 'csv2wiki')
 
 from bs4 import BeautifulSoup
 import contextlib
 import os
-import urllib2
+import urllib.request, urllib.error, urllib.parse
 
 # Change working directory context manager
 @contextlib.contextmanager
@@ -35,7 +40,7 @@ def get_mediawiki_url():
     # Get wiki access url
     global mediawiki_url
     if not mediawiki_url:
-        req = urllib2.urlopen(config['wiki_url'])
+        req = urllib.request.urlopen(config['wiki_url'])
         mediawiki_url = '/'.join(req.geturl().split('/')[:-1]) + '/'
     return mediawiki_url
 
@@ -56,7 +61,7 @@ def create_pages():
 def fetch_page(name):
     """Pull a page from our mediawiki instance"""
     create_pages()
-    return urllib2.urlopen(get_mediawiki_url() + name).read()
+    return urllib.request.urlopen(get_mediawiki_url() + name).read()
 
 def fetch_entry(num):
     """Given an entry number, fetch it from the mediawiki"""
@@ -107,7 +112,7 @@ def test_entries():
         if not prefix in href:
             continue
         url = "Entry"+href.split("/Entry")[1]
-        print "Trying to fetch " + url
+        print("Trying to fetch " + url)
         html = fetch_page(url)
         assert html != ""
 
@@ -116,5 +121,5 @@ def test_entries():
         
         fetched_one = True 
         
-    print "If we didn't actually fetch one, the prefix detection for entry items is not finding any entry items, which is a problem."
+    print("If we didn't actually fetch one, the prefix detection for entry items is not finding any entry items, which is a problem.")
     assert fetched_one == True

@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 #
 # Convert a CSV file to wiki pages.  Run 'csv2wiki --help' for details.
@@ -326,7 +326,7 @@ import csv
 import mwclient
 import unidecode
 import getopt, sys
-import ConfigParser
+import configparser
 import re
 import warnings
 from bs4 import BeautifulSoup
@@ -520,9 +520,9 @@ def wikify_anchors(soup):
 
     """
     for a in soup.select('a'):
-        if a.has_key('href'):  # not a dict, so "if 'href' in a" won't work
+        if 'href' in a:  # not a dict, so "if 'href' in a" won't work
             a.replace_with(
-                BeautifulSoup(u"[{1} {0}]".format(a.text, a['href']), 
+                BeautifulSoup("[{1} {0}]".format(a.text, a['href']), 
                               'html.parser'))
     return soup
 
@@ -540,7 +540,7 @@ want to override with formatting for other wikis.
     
     soup = wikify_anchors(soup)
     
-    return unicode(soup)
+    return str(soup)
 
 
 def create_pages(wiki_sess, csv_input, null_as_value, pare):
@@ -587,14 +587,14 @@ def create_pages(wiki_sess, csv_input, null_as_value, pare):
       # Anyway, the solution is to call unidecode_expect_nonascii()
       # directly and not worry that that's slightly slower overall.
       try:
-          s = unicode(s, "utf-8")
+          s = str(s, "utf-8")
       except UnicodeDecodeError:
           # TODO: We could nest more encoding attempts here.
           # E.g., ISO-8859-2, -3, ... -15, KOI8_R, etc.  But
           # information about character encoding frequency is
           # surprisingly hard to come by on the Internet, so it's
           # unclear what order it would be best to try them in.
-          s = unicode(s, "latin-1")
+          s = str(s, "latin-1")
       return unidecode.unidecode_expect_nonascii(s)
 
     # Put the headers in the config-specified order.
@@ -692,11 +692,11 @@ def create_pages(wiki_sess, csv_input, null_as_value, pare):
             else:
                 categories[""].append(page_name)
         wiki_sess.write_page(page_name, page_text)
-        print("CREATED PAGE: \"" + page_name + "\"")
+        print(("CREATED PAGE: \"" + page_name + "\""))
         
     # create the TOC page.
     toc_text = ""
-    num_categories = len(categories.keys())
+    num_categories = len(list(categories.keys()))
 
     # This got too big to fit into a lambda anymore :-).
     def categories_sorter(key):
@@ -707,7 +707,7 @@ def create_pages(wiki_sess, csv_input, null_as_value, pare):
         else:
             return -len(categories[key])
     
-    for cat in sorted(categories.keys(), key=categories_sorter):
+    for cat in sorted(list(categories.keys()), key=categories_sorter):
         if num_categories > 1:
             usable_cat = cat
             if usable_cat == "":
@@ -725,13 +725,13 @@ def create_pages(wiki_sess, csv_input, null_as_value, pare):
             toc_text += '* [[' + pnam + ']]\n'
         toc_text += "\n"
     wiki_sess.write_page(wiki_sess.toc_name, toc_text)
-    print("CREATED TOC: \"" + wiki_sess.toc_name + "\"")
+    print(("CREATED TOC: \"" + wiki_sess.toc_name + "\""))
     
     # generate the category pages
     if wiki_sess.cat_col:
-        for category in categories.keys():
+        for category in list(categories.keys()):
             wiki_sess.write_page('Category:' + category, "")
-            print("CREATED CATEGORY: \"" + category + "\"")
+            print(("CREATED CATEGORY: \"" + category + "\""))
 
     return
 
@@ -742,7 +742,7 @@ def delete_pages(wiki_sess, pat):
     search_results = wiki_sess.site_conn.search(pat, what="title")
     for result in search_results:
         wiki_sess.delete_page(result['title'])
-        print("DELETED PAGE: \"" + result['title'] + "\"")
+        print(("DELETED PAGE: \"" + result['title'] + "\""))
     return
 
 def usage(errout=False):
@@ -757,7 +757,7 @@ def parse_config_file(config_file):
     # object itself, because we want to avoid callers having to pass
     # the 'default' section name every time they access a field.
     config = {}
-    config_parser = ConfigParser.ConfigParser()
+    config_parser = configparser.ConfigParser()
     parsed_files = config_parser.read(config_file)
     # ConfigParser.read() returns the number of files read, and if
     # some of them aren't present, it doesn't raise any exceptions
