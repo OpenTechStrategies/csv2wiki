@@ -437,34 +437,23 @@ class WikiSession:
 
 class CSVInput():
     """Iterator class encapsulating a CSV file as input."""
-    def __init__(self, csv_file, config):
-        """Prepare CSV_FILE for input, with delimiters from CONFIG.
-        CONFIG is a dict returned from parse_config_file(), or else
-        it is None, in which case default config values are used."""
-        self.csv_reader          = None  # will be csv.reader object
-        self.headers             = []
-        self.row_count           = None  # will be num rows not counting header
-
-        if config is None: 
-            config = {}
-
-        # First get a row count, so we can pad the row number later.
-        csv_fh = open(csv_file, 'rb')
-        self.csv_reader = csv.reader(csv_fh,
-                                    delimiter=config.get('delimiter', ','),
-                                    quotechar=config.get('quotechar', '"'))
-        self.row_count = sum(1 for row in self.csv_reader) - 1
+    def count_rows(self):
+        """Count rows in the csv file, accounting for the headers"""
+        
+        self.csv_fh.seek(0)
+        row_count = sum(1 for row in self.csv_reader) - 1
         
         # Reset the reader for our callers.
-        csv_fh.seek(0)
-        self.csv_reader = csv.reader(csv_fh,
-                                    delimiter=config.get('delimiter', ','),
-                                    quotechar=config.get('quotechar', '"'))
-
-        self.headers = next(self.csv_reader)
-
-        # Some columns (sections) might need new names in the wiki.
-        col_renames = config.get('col_renames', None)
+        self.csv_fh.seek(0)
+        self.csv_reader = csv.reader(self.csv_fh,
+                            delimiter=self.config.get('delimiter', ','),
+                            quotechar=self.config.get('quotechar', '"'))
+        
+        return row_count
+    
+    def rename_columns(self):
+        """Some columns (sections) might need new names in the wiki."""
+        col_renames = self.config.get('col_renames', None)
         if col_renames is not None:
             # Because of the ConfigParser syntax, the format we get the
             # renames in is one big string, splittable on line breaks
@@ -480,6 +469,27 @@ class CSVInput():
                 # In general, this script needs to DTRT w/ encodings.
                 self.headers[int(col_num) - 1] = new_name
 
+    def __init__(self, csv_file, config):
+        """Prepare CSV_FILE for input, with delimiters from CONFIG.
+        CONFIG is a dict returned from parse_config_file(), or else
+        it is None, in which case default config values are used."""
+        self.csv_reader          = None  # will be csv.reader object
+        self.headers             = []
+        self.row_count           = None  # will be num rows not counting header
+        
+        self.config = config or {}
+        self.csv_fh = open(csv_file, 'rb')
+        self.csv_reader = csv.reader(self.csv_fh,
+                            delimiter=self.config.get('delimiter', ','),
+                            quotechar=self.config.get('quotechar', '"'))       
+
+        # First get a row count, so we can pad the row number later.
+        self.row_count = self.count_rows()
+
+        # Set column headers, renaming if needed
+        self.headers = next(self.csv_reader)
+        self.rename_columns()
+        
     def show_columns(self, out):
         """Print this CSV's column names, numbered, to OUT."""
         fmt = "{:0" + str(len(str(len(self.headers)))) + "}"
