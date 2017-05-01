@@ -20,7 +20,7 @@
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 __doc__ = """\
-Convert each row of a UTF-8 or Latin-1 CSV file to a MediaWiki page.
+Convert each row of a UTF-8 CSV file to a MediaWiki page.
 
 Basic usage:
 
@@ -587,15 +587,6 @@ def create_pages(wiki_sess, csv_input, null_as_value, pare):
         #
         # Anyway, the solution is to call unidecode_expect_nonascii()
         # directly and not worry that that's slightly slower overall.
-        try:
-            s = str(s, "utf-8")
-        except UnicodeDecodeError:
-            # TODO: We could nest more encoding attempts here.
-            # E.g., ISO-8859-2, -3, ... -15, KOI8_R, etc.  But
-            # information about character encoding frequency is
-            # surprisingly hard to come by on the Internet, so it's
-            # unclear what order it would be best to try them in.
-            s = str(s, "latin-1")
         return unidecode.unidecode_expect_nonascii(s)
 
     # Put the headers in the config-specified order.
