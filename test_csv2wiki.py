@@ -8,13 +8,27 @@ mediawiki instance.  If mediawiki isn't up, these tests will fail.
 
 """
 
-# We named csv2wiki using a dash and left out the .py extension, so
-# these next two lines ares basically just a regular old import:
+# We named csv2wiki without the .py extension, so these next two lines
+# ares basically just a regular old import:
 import imp
 csv2wiki = imp.load_source('csv2wiki', 'csv2wiki')
 
-import urllib2
 from bs4 import BeautifulSoup
+import contextlib
+import os
+import urllib2
+
+# Change working directory context manager
+@contextlib.contextmanager
+def cwd(direc):
+    curdir= os.getcwd()
+    os.chdir(direc)
+    try: yield
+    finally: os.chdir(curdir)
+
+## Load config file
+with cwd(os.path.dirname(os.path.abspath(__file__))):
+    config = csv2wiki.parse_config_file(config_fname)
 
 mediawiki_url = ""
 def get_mediawiki_url():
@@ -32,8 +46,9 @@ def create_pages():
     if not created:
         null_as_value = False
         pare = 1
-        config = csv2wiki.parse_config_file(config_fname)
-        csv_in = csv2wiki.CSVInput(sanitized_fname, config)
+        with cwd(os.path.dirname(os.path.abspath(__file__))):
+            config = csv2wiki.parse_config_file(config_fname)
+            csv_in = csv2wiki.CSVInput(sanitized_fname, config)
         wiki_sess = csv2wiki.WikiSession(config)
         csv2wiki.create_pages(wiki_sess, csv_in, null_as_value, pare)
     created = True
@@ -56,9 +71,10 @@ def fetch_toc_soup():
     return toc
 
 def test_config_file():
-    global config
-    config = csv2wiki.parse_config_file(config_fname)
-    assert config['wiki_url'] != ""
+    """Make sure the config file is there and we find an expected field."""
+    with cwd(os.path.dirname(os.path.abspath(__file__))):
+        config = csv2wiki.parse_config_file(config_fname)
+        assert config['wiki_url'] != ""
     
 def test_toc():
     """Make sure there is a table of contents."""
@@ -75,7 +91,6 @@ def test_entries():
     """Make sure there are entries and we can download them."""
     toc = fetch_toc_soup()
 
-    
     entries = toc.find('div', id='mw-content-text').select("a")
     prefix = '/'+'/'.join(get_mediawiki_url().split('/')[3:])
     if not prefix.endswith('/'):
