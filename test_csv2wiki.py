@@ -93,7 +93,12 @@ def test_entries():
             continue
         url = "Entry"+href.split("/Entry")[1]
         print "Trying to fetch " + url
-        assert fetch_page(url) != ""
+        html = fetch_page(url)
+        assert html != ""
+
+        ## test wikify_anchors
+        assert not "&lt;a href=" in html
+        
         fetched_one = True 
         
     print "If we didn't actually fetch one, the prefix detection for entry items is not finding any entry items, which is a problem."

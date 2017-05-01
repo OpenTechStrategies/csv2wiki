@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+# -*- coding: utf-8 -*-
 #
 # Convert a CSV file to wiki pages.  Run 'csv2wiki --help' for details.
 # https://github.com/OpenTechStrategies/ots-tools/blob/master/csv2wiki
@@ -326,6 +327,9 @@ import mwclient
 import unidecode
 import getopt, sys
 import ConfigParser
+import re
+import warnings
+from bs4 import BeautifulSoup
 
 # For exception matching.
 import requests
@@ -505,9 +509,37 @@ class CSVInput():
     def __next__(self):
         """Return the next row in this CSV."""
         return next(self.csv_reader)
+    
+def wikify_anchors(soup):
+    """Return new soup with all of SOUP's href-bearing anchors wikified.
+    That is, anchors of the form <a href="url">text</a> in SOUP will
+    be converted to MediaWiki-style "[url text]"."""
+    for a in soup.select('a'):
+        if a.has_key('href'):  # not a dict, so "if 'href' in a" won't work
+            a.replace_with(
+                BeautifulSoup(u"[{1} {0}]".format(a.text, a['href']), 
+                              'html.parser'))
+    return soup
+
+def format_cell(cell):
+    """Take the html in cell and adjust it to be mediawiki-friendly.  This
+is mediawiki-specific, but I imagine a future version of this might
+want to override with formatting for other wikis.
+
+    """
+
+    # Make soup
+    warnings.filterwarnings("ignore",
+                            category=UserWarning, module='bs4')
+    soup = BeautifulSoup(cell, "html.parser")
+    
+    soup = wikify_anchors(soup)
+    
+    return unicode(soup)
 
 
 def create_pages(wiki_sess, csv_input, null_as_value, pare):
+
     """Create a wiki page in WIKI_SESS for each row in CSV_INPUT.
     The CSV must have at least one row of content.
 
@@ -637,6 +669,10 @@ def create_pages(wiki_sess, csv_input, null_as_value, pare):
                     categories[cell_esc] = [page_name]
                 else:
                     categories[cell_esc].append(page_name)
+
+            ## Clear up formatting issues
+            cell_text = format_cell(cell_text)
+            
             # It's [cell_num - 1] below because we switched to 1-based
             # indexing earlier.
             page_text += "== " + reordered_headers[cell_num - 1] + " =="
