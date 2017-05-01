@@ -520,7 +520,7 @@ def wikify_anchors(soup):
 
     """
     for a in soup.select('a'):
-        if 'href' in a:  # not a dict, so "if 'href' in a" won't work
+        if 'href' in str(a):
             a.replace_with(
                 BeautifulSoup("[{1} {0}]".format(a.text, a['href']), 
                               'html.parser'))
@@ -532,6 +532,7 @@ is mediawiki-specific, but I imagine a future version of this might
 want to override with formatting for other wikis.
 
     """
+
 
     # Make soup
     warnings.filterwarnings("ignore",

@@ -9,9 +9,10 @@ mediawiki instance.  If mediawiki isn't up, these tests will fail.
 """
 
 import os
+import re
 
-# We named csv2wiki without the .py extension, so these next two lines
-# ares basically just a regular old import:
+# We named csv2wiki without the .py extension, so these next lines
+# are basically just a regular old import:
 import imp
 if os.path.isdir('csv2wiki'):
     csv2wiki = imp.load_source('csv2wiki', 'csv2wiki/csv2wiki')
@@ -107,7 +108,7 @@ def test_entries():
 
     fetched_one = False
     for e in entries:
-        print(e)
+        #print(e)
         href = e.get('href', "")
         if not href:
             continue
@@ -119,9 +120,20 @@ def test_entries():
         assert html != ""
 
         ## test wikify_anchors
+        if "&lt;a " in html:
+            for lt in re.findall(r"&lt;a.*&gt;", html):
+                print(lt)
         assert not "&lt;a href=" in html
         
         fetched_one = True 
         
     print("If we didn't actually fetch one, the prefix detection for entry items is not finding any entry items, which is a problem.")
     assert fetched_one == True
+
+def test_input_csv():
+    """The sanitized csv input shouldn't have any "%lt;a href" anchors in
+it."""
+    with cwd(os.path.dirname(os.path.abspath(__file__))):
+        with open(sanitized_fname) as INF:
+            csv = INF.read()
+    assert not "&lt;a href" in csv
