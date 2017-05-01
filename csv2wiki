@@ -513,7 +513,12 @@ class CSVInput():
 def wikify_anchors(soup):
     """Return new soup with all of SOUP's href-bearing anchors wikified.
     That is, anchors of the form <a href="url">text</a> in SOUP will
-    be converted to MediaWiki-style "[url text]"."""
+    be converted to MediaWiki-style "[url text]".
+
+    SOUP, of course, is beautiful soup, because who has time for ugly
+    soup?
+
+    """
     for a in soup.select('a'):
         if a.has_key('href'):  # not a dict, so "if 'href' in a" won't work
             a.replace_with(
@@ -522,7 +527,7 @@ def wikify_anchors(soup):
     return soup
 
 def format_cell(cell):
-    """Take the html in cell and adjust it to be mediawiki-friendly.  This
+    """Take the html in CELL and adjust it to be mediawiki-friendly.  This
 is mediawiki-specific, but I imagine a future version of this might
 want to override with formatting for other wikis.
 
