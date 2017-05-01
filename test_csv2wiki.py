@@ -59,9 +59,10 @@ def create_pages():
     created = True
 
 def fetch_page(name):
-    """Pull a page from our mediawiki instance"""
+    """Pull page named NAME from our mediawiki instance and return it as a
+string"""
     create_pages()
-    return urllib.request.urlopen(get_mediawiki_url() + name).read()
+    return urllib.request.urlopen(get_mediawiki_url() + name).read().decode("utf-8")
 
 def fetch_entry(num):
     """Given an entry number, fetch it from the mediawiki"""
@@ -106,6 +107,7 @@ def test_entries():
 
     fetched_one = False
     for e in entries:
+        print(e)
         href = e.get('href', "")
         if not href:
             continue
