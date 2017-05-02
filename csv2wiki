@@ -430,7 +430,7 @@ class WikiSession:
         try:
             page.save(text + colophon, edit_msg)
         except mwclient.errors.APIError as e:
-            raise e("ERROR: unable to write page: '%s'" % err)
+            raise Exception("ERROR: unable to write page: '%s'" % e.info)
 
     def delete_page(self, page_name):
         """Delete page PAGE_NAME from this wiki."""
@@ -438,7 +438,7 @@ class WikiSession:
         try:
             page.delete()
         except mwclient.errors.APIError as e:
-            raise e("ERROR: unable to delete page: '%s'" % err)
+            raise Exception("ERROR: unable to delete page: '%s'" % e.info)
 
 
 class CSVInput():
