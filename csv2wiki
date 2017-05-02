@@ -533,7 +533,9 @@ want to override with formatting for other wikis.
 
     """
 
-
+    # Mediawiki doesn't do tbody
+    cell = cell.replace("<tbody>", "").replace("</tbody>", "")
+    
     # Make soup
     warnings.filterwarnings("ignore",
                             category=UserWarning, module='bs4')
@@ -681,7 +683,7 @@ def create_pages(wiki_sess, csv_input, null_as_value, pare):
 
             ## Clear up formatting issues
             cell_text = format_cell(cell_text)
-            
+
             # It's [cell_num - 1] below because we switched to 1-based
             # indexing earlier.
             page_text += "== " + reordered_headers[cell_num - 1] + " =="

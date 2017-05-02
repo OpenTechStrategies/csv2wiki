@@ -108,7 +108,6 @@ def test_entries():
 
     fetched_one = False
     for e in entries:
-        #print(e)
         href = e.get('href', "")
         if not href:
             continue
@@ -119,12 +118,14 @@ def test_entries():
         html = fetch_page(url)
         assert html != ""
 
-        ## test wikify_anchors
+        # test wikify_anchors
         if "&lt;a " in html:
             for lt in re.findall(r"&lt;a.*&gt;", html):
                 print(lt)
         assert not "&lt;a href=" in html
-        
+
+        # Test for <tbody>
+        assert not "&lt;tbody" in html    
         fetched_one = True 
         
     print("If we didn't actually fetch one, the prefix detection for entry items is not finding any entry items, which is a problem.")
@@ -137,3 +138,5 @@ it."""
         with open(sanitized_fname) as INF:
             csv = INF.read()
     assert not "&lt;a href" in csv
+
+    
