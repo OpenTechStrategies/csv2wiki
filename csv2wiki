@@ -638,6 +638,17 @@ def create_pages(wiki_sess, csv_input, null_as_value, pare):
                 page_name = massage_string(page_name)
                 page_name = page_name.replace(" ", "_")
                 page_name = wiki_sess.wiki_escape(page_name)
+
+                # Wikimedia will convert &ampl to an ampersand and
+                # then consider that ampersand as the start of a new
+                # ampersand-encoded special char and then complains
+                # about an invalid page title.  We put underscores
+                # fore and aft to break up that second special char.
+                if re.search(r"&amp;.*;", page_name):
+                    page_name = page_name.replace("&amp;", "_&amp;_")
+                    page_name = page_name.replace("&amp;__", "&amp;_")
+                    page_name = page_name.replace("__&amp;", "_&amp;")
+                
                 # Set the contents of each cell to their own section.
             # Unconditionally increment the cell number; note this
             # also switches us from 0-based to 1-based indexing.
