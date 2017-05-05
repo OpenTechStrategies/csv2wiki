@@ -237,9 +237,16 @@ created with this script.
 Dependencies and Troubleshooting
 --------------------------------
 
-* This requires the 'mwclient' and 'unidecode' Python libraries
+* This requires the 'bs4', 'mwclient', 'unidecode' Python libraries
 
   If you get an error that looks something like this:
+
+    Traceback (most recent call last):
+      File "./csv2wiki", line 332, in <module>
+        from bs4 import BeautifulSoup
+    ImportError: No module named 'bs4'
+
+  or this:
 
     Traceback (most recent call last):
       File "./csv2wiki", line 27, in <module>
@@ -255,8 +262,9 @@ Dependencies and Troubleshooting
 
   then run these commands
 
-    $ sudo pip install mwclient
-    $ sudo pip install unidecode
+    $ sudo pip3 install bs4
+    $ sudo pip3 install mwclient
+    $ sudo pip3 install unidecode
 
   and try again.
 
