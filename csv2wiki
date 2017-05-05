@@ -459,7 +459,12 @@ class WikiSession:
             # maybe followed by whitespace, optionally followed by a
             # new title for the corresponding section.
             for line in self.col_map.splitlines():
-                col_spec, new_name = line.split(None, 1)
+                col_spec = None
+                new_name = None
+                try:
+                    col_spec, new_name = line.split(None, 1)
+                except ValueError:
+                    col_spec = line
                 # Remember, we're off-by-one from the human-readable
                 # column numbers, because of 0-based indexing.  
                 # self.headers[int(col_num) - 1] = new_name
