@@ -451,8 +451,11 @@ class WikiSession:
         self.csv2wiki_url = 'https://github.com/OpenTechStrategies/' \
                             + 'ots-tools/blob/master/csv2wiki'
 
-        self.wiki_page_skel      = WikiSectionSkel()
+        self.wiki_page_skel = WikiSectionSkel()
+        cur_skel = self.wiki_page_skel
         if self.col_map is not None:
+            # Fill out wiki_page_skel to match col_map.
+            # 
             # Because of the ConfigParser syntax, the format we get the
             # map in is one big string, splittable on line breaks into
             # a list of lines, where each line starts with a column spec,
@@ -465,20 +468,23 @@ class WikiSession:
                     col_spec, new_name = line.split(None, 1)
                 except ValueError:
                     col_spec = line
-                # Remember, we're off-by-one from the human-readable
-                # column numbers, because of 0-based indexing.  
-                # self.headers[int(col_num) - 1] = new_name
-                sys.stderr.write("DEBUG: col_spec: '%s'\n" % col_spec)
-                if new_name is not None:
-                    sys.stderr.write("       new_name: '%s'\n" % new_name)
-                else:
-                    sys.stderr.write("       new_name: NONE\n")
-                sys.stderr.write("\n")
-                # Also, if we didn't know the header data was all in
-                # the ASCII subset of UTF-8, we'd convert to/from
-                # unicode.  In general, this script needs to DTRT w/
-                # encodings.  Fill out wiki_page_skel to match
-                # col_map.
+                # If we didn't know the header data was all in the
+                # ASCII subset of UTF-8, we'd convert to/from unicode.
+                # In general, this script needs to DTRT w/ encodings.
+                col_num = None
+                ghost_sec = None
+                try:
+                    col_num = int(col_spec)
+                    sys.stderr.write("DEBUG: col_num: '%d'\n" % col_num)
+                    if new_name is not None:
+                        sys.stderr.write("       new_name: '%s'\n" % new_name)
+                    else:
+                        sys.stderr.write("       new_name: NONE\n")
+                    cur_skel.children.append(
+                        WikiSectionSkel(cur_skel, col_num, new_name))
+                except ValueError:
+                    # col_spec is one of "word", "word.N", or "N.M".
+                    sys.stderr.write("DEBUG: NON-SIMPLE: '%s' \n" % col_spec)
             sys.exit(0)
             # Convert column reordering to a list of integers.
             self.col_order = [int(x) for x in self.col_order.split()]
