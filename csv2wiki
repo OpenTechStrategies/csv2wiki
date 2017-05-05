@@ -86,55 +86,109 @@ a sole "[default]" section and the following elements in that section:
                        0.  Omit this, or leave the value blank, to not
                        use categories at all.
 
-  col_renames:         A possibly multi-line list of column numbers
-                       and the corresponding new header names (i.e.,
-                       section names in the wiki) that should be used
-                       for those columns instead of whatever names are
-                       given in the header row of the CSV.  When
-                       renaming more than one column, put each number
-                       and the corresponding new name on its own line.
-                       For example:
+  col_map:             A map to reorder/rename/regroup columns into sections.
 
-                         col_renames:  12 Executive Summary
-                                       20 Reviewer AA Comments
-                                       21 Reviewer BB Comments
-                                       23 Reviewer CC Comments
-                                       30 Total Score
+                       This is a versatile and multifaceted option --
+                       the core of csv2wiki, really.  Spend some time
+                       to get to know it.  You'll be glad you did.
 
-                       So if in the original CSV, the header for
-                       column 12 were "Exec. Summ.", in the wiki it
-                       would become "Executive Summary", and so on.
+                       The col_map is a typically multi-line list of
+                       column numbers, given in the desired order for
+                       the corresponding sections in the wiki page,
+                       with optional new section titles to replace the
+                       default column heading.
 
-                       The column numbers here refer to the original
-                       column numbers in the CSV; any re-ordering done
-                       by the 'col_order' option is applied afterwards.
+                       Each line of col_map is a specifier of this form:
+
+                         COL_SPEC   OPTIONAL SECTION TITLE FOR THAT COLUMN
+
+                       COL_SPEC contains no whitespace, and any amount
+                       of whitespace may separate it from the optional
+                       section title string.  If no section title is
+                       given, then the original column header of that
+                       column is used for the section title.
+
+                       The order in which columns are specified, from
+                       top to bottom in the col_map list, is the order
+                       in which corresponding sections in each wiki
+                       page will be created.
+
+                       COL_SPEC can be one of three things:
+
+                         1) A column number (the simplest case).
+  
+                         2) A sequence of numbers separated by dots,
+                            e.g., "30.27".  This creates a subsection in
+                            the wiki page.  The last component ("27" here)
+                            is the column being specified, and the order
+                            in which the line appears in col_map just
+                            shows that subsection's place *within* the
+                            overall encapsulating section ("30").
+  
+                         3) A string containing no dots and at least one
+                            non-numeric.  This creates a new section,
+                            not corresponding to any column in the CSV,
+                            so that you can group other subsections
+                            within it.
+
+                       (TODO: generalize above to COL_SPEC.COL_SPEC etc.)
+
+                       Here is a complete example specification:
+
+                         col_map:   3           Applicant Name
+                                   12           Executive Summary
+                                   15           Detailed Proposal
+                                   comments     Comments
+                                   comments.23  Reviewer CC Comments
+                                   comments.21  Reviewer BB Comments
+                                   comments.20  Reviewer AA Comments
+                                   30           Total Score
+                                   30.29        Reviewer CC Score
+                                   30.28        Reviewer BB Score
+                                   30.27        Reviewer AA Score
+
+                       These are the wiki sections the above would produce:
+
+                         + Applicant Name
+                         + Executive Summary
+                         + Detailed Proposal
+                         + Comments
+                           - Reviewer CC Comments
+                           - Reviewer BB Comments
+                           - Reviewer AA Comments
+                         + Total Score
+                           - Reviewer CC Score
+                           - Reviewer BB Score
+                           - Reviewer AA Score
+
+                       So even if the original CSV had the header
+                       "Appl. Name" for column 3 and "Exec. Summ." for
+                       column 12, the wiki has "Applicant Name" and
+                       "Executive Summary", and so on.
+
+                       You can also use this to omit columns from the
+                       conversion entirely: if you don't list a
+                       column, it simply won't be included as a wiki
+                       section at all.
 
                        No column number may be repeated; if there are
                        repeats, the behavior is undefined.
+
+                       The column numbers used in the spec always
+                       refer to the original column numbers in the
+                       CSV; any re-ordering is applied afterwards.
+
+                       Any reordering or omissions done in col_map do
+                       not affect column references in other run-time
+                       configuration parameters.  In other words, all
+                       column numbers specified in the config file
+                       refer to the original CSV file, not to the
+                       reordering used for the wiki output.
 
   last_cat:            The (case-insensitive) name of the category, if
                        any, that should always be listed last in the
                        table of contents, even if that category contains
                        more pages than some other category.
-
-  col_order:           If present, a space-separated list of integers
-                       indicating the order in which columns should be
-                       represented as sections on a wiki page.  For
-                       example, if the value is "1 5 2 3 4", then for 
-                       each row, wiki page will have a section for
-                       column 1, followed by a section for column 5,
-                       followed by column 2, then 3, then 4.
-
-                       You can also use this to omit columns from the
-                       conversion entirely: if you don't list a
-                       column, it simply won't be included at all.
-
-                       Note that reordering or omissions done in this
-                       parameter do not affect column references in
-                       other run-time configuration parameters.  In
-                       other words, all column numbers specified in
-                       the config file refer to the original CSV file,
-                       not to the reordering used for the wiki output.
 
   keep_empty:          If present, still create sections for empty
                        cells in the CSV.  If a value is provided, use
@@ -171,7 +225,17 @@ Here is an example config file:
   title_tmpl: Entry_{1}
   toc_name: List_of_Entries
   cat_col: 5
-  col_order: 1 5 2 3 4
+  col_map:   3           Applicant Name
+            12           Executive Summary
+            15           Detailed Proposal
+            comments     Comments
+            comments.23  Reviewer CC Comments
+            comments.21  Reviewer BB Comments
+            comments.20  Reviewer AA Comments
+            30           Total Score
+            30.29        Reviewer CC Score
+            30.28        Reviewer BB Score
+            30.27        Reviewer AA Score
 
 The "[default]" section name at the top must be present.  The .ini
 format always has sections, and for the sake of forward compatibility
@@ -342,10 +406,117 @@ from bs4 import BeautifulSoup
 # For exception matching.
 import requests
 
+# TODO: This function should no longer be necessary.  csv2wiki now
+# only supports UTF-8 input, which Python is well-equipped to handle.
+# However, if we're going to get rid of this function, we should be
+# sure that doing so really makes no difference in the output.
+def massage_string(s):
+    """Convert non-ASCII string S to nearest lower ASCII equivalent."""
+    # TODO: This is really a todo for the unidecode module
+    # (https://pypi.python.org/pypi/Unidecode), not us.  The
+    # documentation says to just use the unidecode() function as the
+    # entry point.  That's an alias for unidecode_expect_ascii(),
+    # which should be the right choice when most of your input is the
+    # plain ASCII subset of UTF-8, because it tries to decode using an
+    # ASCII assumption and then catches the exception and tries again
+    # with non-ascii as the assumption in the rare case that the
+    # string is not ASCII.
+    #
+    # However, I think maybe it has a bug with respect to recent
+    # Python versions?  It tries to trap the exception by catching
+    # 'UnicodeEncodeError', but the error actually thrown is
+    # (reasonably enough) 'UnicodeDecodeError'.  So it just propagates
+    # that exception up the stack and never makes it to the
+    # unidecode_expect_nonascii() call that would have successfully
+    # decoded the string.
+    # /usr/local/lib/python2.7/dist-packages/unidecode/__init__.py has
+    # the details (on my system, at least).
+    #
+    # Anyway, the solution is to call unidecode_expect_nonascii()
+    # directly and not worry that that's slightly slower overall.
+    return unidecode.unidecode_expect_nonascii(s)
+
+class WikiSectionSkel():
+    """One section, subsection, etc of a wiki page.  This is the
+    usual DAG tree structure; the top element -- the one with no
+    parent and no sec_title -- represents the wiki page as a whole.
+    (Overall, the entire tree is effectively the data structure
+    representation of the 'col_map' option in the config file.)"""
+    def __init__(self, parent=None, column=None, sec_title=None):
+        """Create one (sub)section on a wiki page.  
+
+        If PARENT is None, then this instance is the top element of a
+        page tree, meaning this instance represents the page itself,
+        so COLUMN and SEC_TITLE must also be None.
+
+        Otherwise: 
+
+          - PARENT is the WikiSectionSkel for the encapsulating
+            section that this (sub)section is in.
+
+          - COLUMN is either a number (the column in the original csv
+            file that corresponds to this section) or a string
+            (representing a new section created for grouping
+            subsections within it).
+
+          - SEC_TITLE is either None, meaning just use the column
+            header taken from the CSV, or a string to use as this
+            section's title.  But when COLUMN is a string, then
+            SEC_TITLE must also be a string, since in that case there
+            is no corresponding column header from the CSV to use as
+            the section title.  (While we could use the empty string
+            in that case, that feels a bit too relaxed.)"""
+        self.parent = parent
+        self.column = column
+        self.sec_title = sec_title
+
+        # Set level based on parent's level (if any).
+        if self.parent is not None:
+            self.level = self.parent.level + 1
+            self.parent.children.append(self)
+        elif self.column is not None or self.sec_title is not None:
+            raise Exception("ERROR: no parent, but column or sec_title given")
+        else:
+            self.level = 0
+
+        # Ordered list of sections directly underneath this one.
+        self.children = []
+
+    def __str__(self):
+        """String representation, normally used only for debugging."""
+        pad = "  " * self.level
+        title = "Untitled wiki section"
+        parent = "(no parent)"
+        column = 0
+        if self.sec_title:
+            title = self.sec_title
+        if self.parent and self.parent.sec_title:
+            parent = self.parent.sec_title
+        if self.column:
+            column = self.column
+        return "" \
+            + pad + "WikiSectionSkel '%s':\n" % title \
+            + pad + "  parent:    %s\n" % parent \
+            + pad + "  level:     %d\n" % self.level \
+            + pad + "  column:    %s\n" % column \
+            + pad + "  children:  %d\n" % len(self.children)
+
+
 class WikiSession:
-    """Connection to a wiki with a given username and password."""
-    def __init__(self, config):
-        """Log in to a wiki session, taking login parameters from CONFIG."""
+    """One session loading a CSV file into a wiki."""
+    # This is MediaWiki-specific right now.  We could conditionalize
+    # based on a new config parameter 'wiki_type'.  At least the
+    # _do_skel(), _make_page(), _save_page(), and delete_page() methods
+    # would need to be updated.
+    def __init__(self, config, csv_input, null_as_value):
+        """Start a wiki session, taking login parameters from CONFIG and
+        column header information (if needed) from CSV_INPUT.
+
+        If NULL_AS_VALUE, then when a CSV cell's entire content is
+        (case-insensitively) the word "null", treat the cell as having
+        that literal content, instead of treating the cell as empty."""
+        self.csv_input           = csv_input
+        self.null_as_value       = null_as_value
         self.site_conn           = None  # will be a mwclient Site object
         self.wiki_url            = config['wiki_url']
         self.username            = config['username']
@@ -356,7 +527,19 @@ class WikiSession:
         self.last_cat            = config.get('last_cat', None)
         self.keep_empty          = config.get('keep_empty', False)
         self.path_to_api         = config.get('path_to_api')
-        self.col_order           = config.get('col_order', None)
+        self.wiki_page_skel      = WikiSectionSkel()
+        # This gets inhaled into self.wiki_page_skel later:
+        col_map                  = config.get('col_map', None)
+        
+        # Map category names to lists, where the elements of each list are
+        # the titles of the pages in the corresponding category.  The
+        # special category "" is used for pages that have no category.
+        # (If categories are not in use at all, or if no pages have a
+        # category, then all pages would be listed under "".)
+        self.categories = {}
+    
+        # Determines how many "0"s to prepend to a row number.
+        self.row_num_fmt = "{:0" + str(len(str(self.csv_input.row_count))) + "}"
 
         if self.path_to_api is None:
             self.path_to_api = "/"
@@ -368,24 +551,68 @@ class WikiSession:
         self.csv2wiki_url = 'https://github.com/OpenTechStrategies/' \
                             + 'ots-tools/blob/master/csv2wiki'
 
-        if self.col_order is not None:
-            # Convert column reordering to a list of integers.
-            self.col_order = [int(x) for x in self.col_order.split()]
-            # If we have a category column, it may have been moved in
-            # the reordering, so find it again.
-            if self.cat_col:
-                try:
-                    self.cat_col = self.col_order.index(self.cat_col)
-                except ValueError:
-                    # It is a user error to specify a cat_col that is
-                    # dropped due to being omitted in col_order.
-                    sys.stderr.write("ERROR: cat_col %d is not " % self.cat_col
-                                     + "included in col_order list\n")
-                    sys.exit(1)
-                # The config file specifies columns using 1-based
-                # indexing for humans, so we have to add 1 too
-                self.cat_col += 1
+        # Turn col_map into a WikiSectionSkel tree.
+        if col_map is not None:
+            cur_parent = self.wiki_page_skel
+            int_matcher = re.compile("^[0-9]+$")
 
+            # Fill out wiki_page_skel to match col_map.
+            # 
+            # Because of the ConfigParser syntax, the format we get the
+            # map in is one big string, splittable on line breaks into
+            # a list of lines, where each line starts with a column spec,
+            # maybe followed by whitespace, optionally followed by a
+            # new title for the corresponding section.
+            for line in col_map.splitlines():
+                col_spec = None
+                new_title = None
+
+                try:
+                    col_spec, new_title = line.split(None, 1)
+                except ValueError:
+                    col_spec = line
+
+                elts = col_spec.split(".")
+
+                # TODO: We could and probably should add some more
+                # strictness here.  For example, we should enforce
+                # that all child sections must immediately follow
+                # their parent -- no stray children somewhere else.
+                # Also, what would happen if someone created a ghost
+                # section (e.g., "porg Principle Organization Info"),
+                # but then subsequent column mappings used some other
+                # name ("pflorg.N" instead of "porg.N")?  We should
+                # error in that case, but I'm not sure we do so now.
+                i = len(elts) - 1
+                if i == cur_parent.level:
+                    pass  # normal case: make another section in this parent
+                elif i == cur_parent.level + 1:
+                    if len(cur_parent.children) == 0:
+                        raise Exception("ERROR: trying to make a subsection "
+                                        + "of a non-existent section")
+                    cur_parent = cur_parent.children[-1]
+                elif i > cur_parent.level:
+                    raise Exception("ERROR: section nesting jumped "
+                                    + "by more than one level")
+                else:  # i <= cur_parent.level
+                    while(cur_parent.level > i):
+                        cur_parent = cur_parent.parent
+
+                col_num = elts[-1]
+
+                if int_matcher.match(col_num):
+                    col_num = int(col_num)
+                elif new_title is None:
+                    raise Exception("ERROR: section title required " \
+                                    + "for '%s'" % elts[0])
+
+                new_skel = WikiSectionSkel(cur_parent, col_num, new_title)
+        else:  # no col_map provided, so contruct trivial one from headers
+            i = 1
+            for header in csv_input.headers:
+                WikiSectionSkel(self.wiki_page_skel, i, header)
+                i += 1
+            
         # Connect to the site.
         try:
             self.site_conn = mwclient.Site(self.wiki_url.split("://"), path=self.path_to_api)
@@ -404,7 +631,7 @@ class WikiSession:
             sys.stderr.write("       ('%s')\n" % err)
             sys.exit(1)
 
-    def wiki_escape(self, s):
+    def _wiki_escape(self, s):
         """Return a wiki-escaped version of STRING."""
         # There was a page with a title like
         # "Entry_72_Foo_Bar_]Baz[." and the API rejected
@@ -414,9 +641,20 @@ class WikiSession:
         # cases together and use "-" as the go-to replacement.
         return s.replace("]", "-").replace("[", "-").replace("#", "-").replace("/", "-")
 
-    # Thse are completeley MediaWiki-specific right now.  We could
-    # conditionalize based on a new config parameter 'wiki_type'.
-    def write_page(self, page_name, text):
+    def _format_cell(self, cell):
+        """Take the html in CELL and adjust it to be mediawiki-friendly.  
+        This is MediaWiki-specific, but I imagine a future version of
+        this might want to override with formatting for other wikis."""
+        # Mediawiki doesn't do tbody
+        cell = cell.replace("<tbody>", "").replace("</tbody>", "")
+        # Make soup
+        warnings.filterwarnings(
+            "ignore", category=UserWarning, module='bs4')
+        soup = BeautifulSoup(cell, "html.parser")
+        soup = wikify_anchors(soup)
+        return str(soup)
+
+    def _save_page(self, page_name, text):
         """Make page PAGE_NAME in this wiki have TEXT,
         with the standard colophon appended."""
         # Put a colophon at the end of every page, because users need to
@@ -448,6 +686,183 @@ class WikiSession:
         except mwclient.errors.APIError as e:
             raise Exception("ERROR: unable to delete page: '%s'" % e.info)
 
+    def _do_skel(self, skel, page_name, row, row_num):
+        """Return the text for a given section skel.
+        ROW is a list of cells from the csv; ROW_NUM is ROW's row
+        number in the csv."""
+        text = ""
+
+        # Special-casing the root skel like this is a bit ugly.  
+        # We just happen to know that it represents the page as a
+        # whole, and that therefore it corresponds to no column and
+        # will have no content of its own.
+        #
+        # The alternative would be for our caller to loop over the
+        # root skel's children calling _do_skel() on each, instead of
+        # calling _do_skel() once on the root and letting it recurse.
+        # But I think it's better to keep the knowledge of how to walk
+        # a skel here, and tolerate this special case.
+        if skel.level > 0:
+            if type(skel.column) is int:
+                cell = row[int(skel.column)]
+                # Do certain things if the cell is effectively empty.
+                if cell is "" or ((not self.null_as_value) 
+                                  and cell.lower() == "null"):
+                    # If the cell is effectively empty, do we skip it or
+                    # use it?  The only circumstance under which we skip
+                    # is if 'wiki_sess.keep_empty' is exactly False;
+                    # otherwise, it's either True or is some string that
+                    # we should use as the value for an empty cell.
+                    if self.keep_empty is False:
+                        next
+                    else:
+                        if isinstance(self.keep_empty, str):
+                            cell = self.keep_empty
+                        else:
+                            cell = ""
+            else:
+                cell = ""
+    
+            ## Clear up formatting issues
+            cell = self._format_cell(cell)
+    
+            if skel.column == self.cat_col:
+                cell_esc = self._wiki_escape(massage_string(cell))
+                cell = '[[:Category:' + cell_esc + '|' + cell_esc + ']]\n'
+                cell += '[[Category:' + cell_esc + ']]'
+                if self.categories.get(cell_esc) is None:
+                    self.categories[cell_esc] = [page_name]
+                else:
+                    self.categories[cell_esc].append(page_name)
+        
+            text += ("=" * skel.level) + " "
+            text += skel.sec_title or page_name
+            text += " " + ("=" * skel.level)
+            text += "\n\n"
+            text += cell
+            text += "\n\n"
+
+        for child in skel.children:
+            text += self._do_skel(child, page_name, row, row_num)
+
+        return text
+
+    def _make_page(self, row):
+        """Build and save a page based on ROW.
+
+        ROW's first element is the row number as a properly padded
+        string, e.g., if the csv has >1000 but <10000 rows, and this
+        is the third row, then ROW[0] would be "0003".
+
+        ROW's subsequent elements are the cell values from the
+        corresponding row in the csv.  In other words, the csv 
+        cells are available using 1-based indexing, which matches 
+        how the user refers to column numbers in the config file."""
+        # Splice any requested columns into the page name.
+        page_name = self.title_tmpl.format(*row)
+        # The input is UTF-8, but for wiki page names we
+        # want to stick to plain old lower ASCII.
+        page_name = massage_string(page_name)
+        page_name = page_name.replace(" ", "_")
+        page_name = self._wiki_escape(page_name)
+        
+        # Wikimedia will convert &amp; to an ampersand and
+        # then consider that ampersand as the start of a new
+        # ampersand-encoded special char and then complains
+        # about an invalid page title.  We put underscores
+        # fore and aft to break up that second special char.
+        if re.search(r"&amp;.*;", page_name):
+            page_name = page_name.replace("&amp;", "_&amp;_")
+            page_name = page_name.replace("&amp;__", "&amp;_")
+            page_name = page_name.replace("__&amp;", "_&amp;")
+        
+        # How many pages have been categorized so far?
+        cats_count = sum(len(val) for val in self.categories.values())
+
+        # Crawl down the page skel, appending page content as needed.
+        page_text = self._do_skel(self.wiki_page_skel, page_name, 
+                                 row, self.categories)
+
+        # If the number of categorized pages didn't change, then
+        # this row (page) didn't fall into any named category, so put
+        # it in the magical category whose name is the empty string.
+        if cats_count == sum(len(val) for val in self.categories.values()):
+            if self.categories.get("") is None:
+                self.categories[""] = [page_name]
+            else:
+                self.categories[""].append(page_name)
+
+        self._save_page(page_name, page_text)
+        print(("CREATED PAGE: \"" + page_name + "\""))
+
+    def make_pages(self, pare):
+        """Create a wiki page for each row in the csv.
+        The csv must have at least one row of content.
+        If PARE is not None, it is an integer indicating that only
+        1/PARE rows should be handled, and the rest skipped."""
+    
+        # read in csv
+        row_num = 0
+        for row in self.csv_input:
+            row_num += 1
+            if pare is not None and row_num % pare != 0:
+                continue
+            # Prepend the row number as the first element below (as a
+            # zero-padded string), so that the user has access to the
+            # row number via the special code "{0}" in title_tmpl in
+            # the config file, and so that all the remaining columns
+            # use 1-based indexing, which matches how the user refers
+            # to columns in the config file.
+            row_num_str = self.row_num_fmt.format(row_num)
+            self._make_page([row_num_str] + row)
+    
+        # create the TOC page.
+        toc_text = ""
+        num_categories = len(list(self.categories.keys()))
+    
+        # This got too big to fit into a lambda anymore :-).
+        def categories_sorter(key):
+            "Return a descending sort value for category KEY."
+            if (self.last_cat is not None 
+                and key.strip().lower() == self.last_cat):
+                return 0
+            else:
+                return - len(self.categories[key])
+        
+        for cat in sorted(list(self.categories.keys()), key=categories_sorter):
+            if num_categories > 1:
+                usable_cat = cat
+                if usable_cat == "":
+                    # Yup, we're just going to hardcode this right here.
+                    # It's a very rare case: the conversion is using
+                    # categories, and we have more than one category
+                    # available, but some pages had no category.  So what
+                    # category should they go in (given that the TOC will
+                    # be organized into categories because multiple
+                    # categories are available)?  Answer: make one up.
+                    usable_cat = "csv2wiki Miscellaneous Default Category"
+                usable_cat = usable_cat + " (" + str(len(self.categories[cat])) + ")"
+                toc_text += "==== " + usable_cat + " ====\n\n"
+            for pnam in self.categories[cat]:
+                toc_text += '* [[' + pnam + ']]\n'
+            toc_text += "\n"
+        self._save_page(self.toc_name, toc_text)
+        print(("CREATED TOC: \"" + self.toc_name + "\""))
+        
+        # generate the category pages
+        if self.cat_col:
+            for category in list(self.categories.keys()):
+                self._save_page('Category:' + category, "")
+                print(("CREATED CATEGORY: \"" + category + "\""))
+    
+    def delete_pages(self, pat):
+        """Delete wiki pages whose names match pattern PAT."""
+        # Could change what="title" to what="text" to get full-text
+        # matching on page contents.  We might want to offer that option.
+        search_results = self.site_conn.search(pat, what="title")
+        for result in search_results:
+            self.delete_page(result['title'])
+            print(("DELETED PAGE: \"" + result['title'] + "\""))
 
 class CSVInput():
     """Iterator class encapsulating a CSV file as input."""
@@ -465,24 +880,6 @@ class CSVInput():
         
         return row_count
     
-    def rename_columns(self):
-        """Some columns (sections) might need new names in the wiki."""
-        col_renames = self.config.get('col_renames', None)
-        if col_renames is not None:
-            # Because of the ConfigParser syntax, the format we get the
-            # renames in is one big string, splittable on line breaks
-            # into a list of lines, where each line starts with a number
-            # identifying the column, followed by whitespace, followed by
-            # the new name for that column.
-            for line in col_renames.splitlines():
-                col_num, new_name = line.split(None, 1)
-                # Remember, we're off-by-one from the human-readable
-                # column numbers, because of 0-based indexing.  Also,
-                # if we didn't know the header data was all in the
-                # ASCII subset of UTF-8, we'd convert to/from unicode.
-                # In general, this script needs to DTRT w/ encodings.
-                self.headers[int(col_num) - 1] = new_name
-
     def __init__(self, csv_file, config):
         """Prepare CSV_FILE for input, with delimiters from CONFIG.
         CONFIG is a dict returned from parse_config_file(), or else
@@ -500,9 +897,8 @@ class CSVInput():
         # First get a row count, so we can pad the row number later.
         self.row_count = self.count_rows()
 
-        # Set column headers, renaming if needed
+        # Set column headers
         self.headers = next(self.csv_reader)
-        self.rename_columns()
         
     def show_columns(self, out):
         """Print this CSV's column names, numbered, to OUT."""
@@ -533,231 +929,6 @@ def wikify_anchors(soup):
                 BeautifulSoup("[{1} {0}]".format(a.text, a['href']), 
                               'html.parser'))
     return soup
-
-def format_cell(cell):
-    """Take the html in CELL and adjust it to be mediawiki-friendly.  This
-is mediawiki-specific, but I imagine a future version of this might
-want to override with formatting for other wikis.
-
-    """
-
-    # Mediawiki doesn't do tbody
-    cell = cell.replace("<tbody>", "").replace("</tbody>", "")
-    
-    # Make soup
-    warnings.filterwarnings("ignore",
-                            category=UserWarning, module='bs4')
-    soup = BeautifulSoup(cell, "html.parser")
-    
-    soup = wikify_anchors(soup)
-    
-    return str(soup)
-
-
-def create_pages(wiki_sess, csv_input, null_as_value, pare):
-
-    """Create a wiki page in WIKI_SESS for each row in CSV_INPUT.
-    The CSV must have at least one row of content.
-
-    If NULL_AS_VALUE, then when a CSV cell's entire content is
-    (case-insensitively) the word "null", treat the cell as having
-    that literal content, instead of treating the cell as empty.
-
-    If PARE is not None, it is an integer indicating that only
-    1/PARE rows should be handled, and the rest skipped."""
-
-    # Map category names to lists, where the elements of each list are
-    # the titles of the pages in the corresponding category.  The
-    # special category "" is used for pages that have no category.
-    # (If categories are not in use at all, or if no pages have a
-    # category, then all pages would be listed under "".)
-    categories = {}
-
-    def massage_string(s):
-        """Convert non-ASCII string S to nearest lower ASCII equivalent."""
-        # TODO: This is really a todo for the unidecode module
-        # (https://pypi.python.org/pypi/Unidecode), not us.  The
-        # documentation says to just use the unidecode() function as
-        # the entry point.  That's an alias for
-        # unidecode_expect_ascii(), which should be the right choice
-        # when most of your input is the plain ASCII subset of UTF-8,
-        # because it tries to decode using an ASCII assumption and
-        # then catches the exception and tries again with non-ascii as
-        # the assumption in the rare case that the string is not
-        # ASCII.
-        #
-        # However, I think maybe it has a bug with respect to recent
-        # Python versions?  It tries to trap the exception by catching
-        # 'UnicodeEncodeError', but the error actually thrown is
-        # (reasonably enough) 'UnicodeDecodeError'.  So it just
-        # propagates that exception up the stack and never makes it to
-        # the unidecode_expect_nonascii() call that would have
-        # successfully decoded the string.
-        # /usr/local/lib/python2.7/dist-packages/unidecode/__init__.py
-        # has the details (on my system, at least).
-        #
-        # Anyway, the solution is to call unidecode_expect_nonascii()
-        # directly and not worry that that's slightly slower overall.
-        return unidecode.unidecode_expect_nonascii(s)
-
-    # Put the headers in the config-specified order.
-    reordered_headers = []
-    for i in wiki_sess.col_order:
-        reordered_headers.append(csv_input.headers[i - 1])
-
-    # read in csv
-    row_num = 0
-    for row in csv_input:
-        row_num += 1
-        page = None
-        page_name = None
-        page_text = ""
-        categorized_p = False
-
-        if pare is not None and row_num % pare != 0:
-            continue
-
-        # Put this row's columns in the config-specified order.
-        reordered_row = []
-        for i in wiki_sess.col_order:
-            reordered_row.append(row[i - 1])
-        reordered_row
-
-        # Looping over the cells in the row.  Name the sections
-        # according to headers.
-        cell_num = 0
-        cell_text = None
-        for cell in reordered_row:
-            if cell_num == 0:
-                # For this new line, generate a mediawiki page
-                #
-                # Splice in any requested columns.  We prepend the
-                # row_num as the first element in the tuple, which
-                # brings two benefits.  First, the user get access
-                # to the row number, via the special code "{0}" in
-                # title_tmpl in the config file.  Second, all the
-                # other columns, which the user is likely to think
-                # of using 1-based indexing not 0-based, are now
-                # 1-based, because the row number is in the first
-                # slot (slot [0]) of the tuple. 
-                row_num_fmt = "{:0" + str(len(str(csv_input.row_count))) + "}"
-                row_num_str = row_num_fmt.format(row_num)
-                page_name = wiki_sess.title_tmpl.format(*([row_num_str,] + row))
-                # The input is UTF-8, but for wiki page names we
-                # want to stick to plain old lower ASCII.
-                page_name = massage_string(page_name)
-                page_name = page_name.replace(" ", "_")
-                page_name = wiki_sess.wiki_escape(page_name)
-
-                # Wikimedia will convert &ampl to an ampersand and
-                # then consider that ampersand as the start of a new
-                # ampersand-encoded special char and then complains
-                # about an invalid page title.  We put underscores
-                # fore and aft to break up that second special char.
-                if re.search(r"&amp;.*;", page_name):
-                    page_name = page_name.replace("&amp;", "_&amp;_")
-                    page_name = page_name.replace("&amp;__", "&amp;_")
-                    page_name = page_name.replace("__&amp;", "_&amp;")
-                
-                # Set the contents of each cell to their own section.
-            # Unconditionally increment the cell number; note this
-            # also switches us from 0-based to 1-based indexing.
-            cell_num += 1
-            # Do certain things if the cell is effectively empty.
-            if cell is "" or ((not null_as_value) and cell.lower() == "null"):
-                # If the cell is effectively empty, do we skip it or
-                # use it?  The only circumstance under which we skip
-                # is if 'wiki_sess.keep_empty' is exactly False;
-                # otherwise, it's either True or is some string that
-                # we should use as the value for an empty cell.
-                if wiki_sess.keep_empty is False:
-                    continue
-                else:
-                    if isinstance(wiki_sess.keep_empty, str):
-                        cell_text = wiki_sess.keep_empty
-                    else:
-                        cell_text = ""
-            else:
-                cell_text = cell
-            if cell_num == wiki_sess.cat_col:
-                cell_esc = wiki_sess.wiki_escape(massage_string(cell))
-                cell_text = '[[:Category:' + cell_esc + '|' + cell_esc + ']]\n'
-                cell_text += '[[Category:' + cell_esc + ']]'
-                categorized_p = True
-                if categories.get(cell_esc) is None:
-                    categories[cell_esc] = [page_name]
-                else:
-                    categories[cell_esc].append(page_name)
-
-            ## Clear up formatting issues
-            cell_text = format_cell(cell_text)
-
-            # It's [cell_num - 1] below because we switched to 1-based
-            # indexing earlier.
-            page_text += "== " + reordered_headers[cell_num - 1] + " =="
-            page_text += "\n\n"
-            page_text += cell_text
-            page_text += "\n\n"
-        if not categorized_p:
-            # If this row did not fall into any category, then put it
-            # in the magical category whose name is the empty string.
-            if categories.get("") is None:
-                categories[""] = [page_name]
-            else:
-                categories[""].append(page_name)
-        wiki_sess.write_page(page_name, page_text)
-        print(("CREATED PAGE: \"" + page_name + "\""))
-        
-    # create the TOC page.
-    toc_text = ""
-    num_categories = len(list(categories.keys()))
-
-    # This got too big to fit into a lambda anymore :-).
-    def categories_sorter(key):
-        "Return a descending sort value for category KEY."
-        if (wiki_sess.last_cat is not None 
-            and key.strip().lower() == wiki_sess.last_cat):
-            return 0
-        else:
-            return -len(categories[key])
-    
-    for cat in sorted(list(categories.keys()), key=categories_sorter):
-        if num_categories > 1:
-            usable_cat = cat
-            if usable_cat == "":
-                # Yup, we're just going to hardcode this right here.
-                # It's a very rare case: the conversion is using
-                # categories, and we have more than one category
-                # available, but some pages had no category.  So what
-                # category should they go in (given that the TOC will
-                # be organized into categories because multiple
-                # categories are available)?  Answer: make one up.
-                usable_cat = "csv2wiki Miscellaneous Default Category"
-            usable_cat = usable_cat + " (" + str(len(categories[cat])) + ")"
-            toc_text += "==== " + usable_cat + " ====\n\n"
-        for pnam in categories[cat]:
-            toc_text += '* [[' + pnam + ']]\n'
-        toc_text += "\n"
-    wiki_sess.write_page(wiki_sess.toc_name, toc_text)
-    print(("CREATED TOC: \"" + wiki_sess.toc_name + "\""))
-    
-    # generate the category pages
-    if wiki_sess.cat_col:
-        for category in list(categories.keys()):
-            wiki_sess.write_page('Category:' + category, "")
-            print(("CREATED CATEGORY: \"" + category + "\""))
-
-    return
-
-def delete_pages(wiki_sess, pat):
-    """Delete wiki pages in WIKI_SESS's wiki whose names match pattern PAT."""
-    # Could change what="title" to what="text" to get full-text
-    # matching on page contents.  We might want to offer that option.
-    search_results = wiki_sess.site_conn.search(pat, what="title")
-    for result in search_results:
-        wiki_sess.delete_page(result['title'])
-        print(("DELETED PAGE: \"" + result['title'] + "\""))
-    return
 
 def usage(errout=False):
     """Print a message explaining how to use this script.
@@ -864,7 +1035,7 @@ def main():
         csv_in.show_columns(sys.stdout)
         sys.exit(0)
 
-    wiki_sess = WikiSession(config)
+    wiki_sess = WikiSession(config, csv_in, null_as_value)
 
     if delete_matching is not None:
         if len(args) > 0:
@@ -872,7 +1043,7 @@ def main():
             usage(errout=True)
             sys.exit(2)
         try:
-            delete_pages(wiki_sess, delete_matching)
+            wiki_sess.delete_pages(delete_matching)
         except IndexError as err:
             sys.stderr.write("ERROR: '%s'\n" % err)
             usage(errout=True)
@@ -887,7 +1058,7 @@ def main():
             usage(errout=True)
             sys.exit(2)
         try:
-            create_pages(wiki_sess, csv_in, null_as_value, pare)
+            wiki_sess.make_pages(pare)
         except IndexError as err:
             sys.stderr.write("ERROR: '%s'\n" % err)
             usage(errout=True)
