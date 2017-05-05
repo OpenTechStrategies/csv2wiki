@@ -86,55 +86,108 @@ a sole "[default]" section and the following elements in that section:
                        0.  Omit this, or leave the value blank, to not
                        use categories at all.
 
-  col_renames:         A possibly multi-line list of column numbers
-                       and the corresponding new header names (i.e.,
-                       section names in the wiki) that should be used
-                       for those columns instead of whatever names are
-                       given in the header row of the CSV.  When
-                       renaming more than one column, put each number
-                       and the corresponding new name on its own line.
-                       For example:
+  col_map:             A map for column reordering, renames, and grouping.
 
-                         col_renames:  12 Executive Summary
-                                       20 Reviewer AA Comments
-                                       21 Reviewer BB Comments
-                                       23 Reviewer CC Comments
-                                       30 Total Score
+                       This is a versatile and multifaceted option --
+                       the core of csv2wiki, really.  Spend some time
+                       to get to know it.  You'll be glad you did.
 
-                       So if in the original CSV, the header for
-                       column 12 were "Exec. Summ.", in the wiki it
-                       would become "Executive Summary", and so on.
+                       The col_map is a possibly multi-line list of
+                       column numbers and their corresponding new
+                       header names (i.e., section names in the wiki)
+                       that should be used for those columns instead
+                       of whatever names are given in the header row
+                       of the CSV.  
 
-                       The column numbers here refer to the original
-                       column numbers in the CSV; any re-ordering done
-                       by the 'col_order' option is applied afterwards.
+                       Each line is a specifier of this form:
+
+                         COL_SPEC   Optional section name for that column
+
+                       COL_SPEC contains no whitespace, and any amount
+                       of whitespace may separate it from the optional
+                       section name string.  (If no section name is
+                       given, then the original column header of that
+                       column is used for the section name.)
+
+                       The order in which columns are specified, from
+                       top to bottom in the col_map list, is the order
+                       in which corresponding sections in the wiki
+                       will be created.
+
+                       COL_SPEC can be one of three things:
+
+                         1) A column number.  This is the simplest case.
+  
+                         2) A sequence of numbers separated by dots,
+                            e.g., "30.27".  This creates a subsection in
+                            the wiki page.  The last component ("27" here)
+                            is the column being specified, and the order
+                            in which the line appears in col_map just
+                            shows that subsection's place *within* the
+                            overall encapsulating section ("30").
+  
+                         3) A string containing no dots and at least one
+                            non-numeric.  This creates a new section,
+                            not corresponding to any column in the CSV,
+                            so that you can group other subsections
+                            within it.
+
+                       A complete example specification:
+
+                         col_map:   3 Applicant Name
+                                   12 Executive Summary
+                                   15 Detailed Proposal
+                                   comments Comments
+                                   comments.23 Reviewer CC Comments
+                                   comments.21 Reviewer BB Comments
+                                   comments.20 Reviewer AA Comments
+                                   30 Total Score
+                                   30.29 Reviewer CC Score
+                                   30.28 Reviewer BB Score
+                                   30.27 Reviewer AA Score
+
+                       Here are the wiki sections the above would produce:
+
+                         + Applicant Name
+                         + Executive Summary
+                         + Detailed Proposal
+                         + Comments
+                           - Reviewer CC Comments
+                           - Reviewer BB Comments
+                           - Reviewer AA Comments
+                         + Total Score
+                           - Reviewer CC Score
+                           - Reviewer BB Score
+                           - Reviewer AA Score
+
+                       So even if the original CSV had the header
+                       "Appl. Name" for column 3 and "Exec. Summ." for
+                       column 12, the wiki has "Applicant Name" and
+                       "Executive Summary", and so on.
+
+                       You can also use this to omit columns from the
+                       conversion entirely: if you don't list a
+                       column, it simply won't be included as a wiki
+                       section at all.
 
                        No column number may be repeated; if there are
                        repeats, the behavior is undefined.
+
+                       The column numbers used in the spec always
+                       refer to the original column numbers in the
+                       CSV; any re-ordering is applied afterwards.
+
+                       Any reordering or omissions done in col_map do
+                       not affect column references in other run-time
+                       configuration parameters.  In other words, all
+                       column numbers specified in the config file
+                       refer to the original CSV file, not to the
+                       reordering used for the wiki output.
 
   last_cat:            The (case-insensitive) name of the category, if
                        any, that should always be listed last in the
                        table of contents, even if that category contains
                        more pages than some other category.
-
-  col_order:           If present, a space-separated list of integers
-                       indicating the order in which columns should be
-                       represented as sections on a wiki page.  For
-                       example, if the value is "1 5 2 3 4", then for 
-                       each row, wiki page will have a section for
-                       column 1, followed by a section for column 5,
-                       followed by column 2, then 3, then 4.
-
-                       You can also use this to omit columns from the
-                       conversion entirely: if you don't list a
-                       column, it simply won't be included at all.
-
-                       Note that reordering or omissions done in this
-                       parameter do not affect column references in
-                       other run-time configuration parameters.  In
-                       other words, all column numbers specified in
-                       the config file refer to the original CSV file,
-                       not to the reordering used for the wiki output.
 
   keep_empty:          If present, still create sections for empty
                        cells in the CSV.  If a value is provided, use
@@ -342,6 +395,36 @@ from bs4 import BeautifulSoup
 # For exception matching.
 import requests
 
+class WikiSectionSkel():
+    """One section, subsection, etc of a wiki page.  This is the
+    usual DAG tree structure; the top element -- the one with no
+    parent and no sec_title -- represents the wiki page as a whole.
+    (Overall, the entire tree is effectively the data structure
+    representation of the 'col_map' option in the config file.)"""
+    def __init__(self, parent=None, column=None, sec_title=None):
+        """One (sub)section within a wiki.  If PARENT is None, then
+    this is the top element of a page tree, meaning this instance
+    represents the page itself, and SEC_TITLE must also be None.
+
+    Otherwise: PARENT is the WikiSectionSkel for the encapsulating
+    section that this (sub)section is in; COLUMN is either a number
+    (the column in the original csv file that corresponds to this
+    section) or a string (representing a new section created for
+    grouping subsections within it); and SEC_TITLE is either None
+    (meaning no change to the column header taken from the CSV) or a
+    string to use as this section's title (which is mandatory if
+    COLUMN is a string, since in that case there is no corresponding
+    column header from the CSV to use as the section title)."""
+        self.parent = parent
+        self.column = column
+        self.sec_title = sec_title
+        if self.parent:
+            self.level = self.parent.level + 1
+        else:
+            self.level = 0
+        # Ordered list of sections underneath this one.
+        self.children = []
+
 class WikiSession:
     """Connection to a wiki with a given username and password."""
     def __init__(self, config):
@@ -356,7 +439,7 @@ class WikiSession:
         self.last_cat            = config.get('last_cat', None)
         self.keep_empty          = config.get('keep_empty', False)
         self.path_to_api         = config.get('path_to_api')
-        self.col_order           = config.get('col_order', None)
+        self.col_map             = config.get('col_map', None)
 
         if self.path_to_api is None:
             self.path_to_api = "/"
@@ -368,7 +451,30 @@ class WikiSession:
         self.csv2wiki_url = 'https://github.com/OpenTechStrategies/' \
                             + 'ots-tools/blob/master/csv2wiki'
 
-        if self.col_order is not None:
+        self.wiki_page_skel      = WikiSectionSkel()
+        if self.col_map is not None:
+            # Because of the ConfigParser syntax, the format we get the
+            # map in is one big string, splittable on line breaks into
+            # a list of lines, where each line starts with a column spec,
+            # maybe followed by whitespace, optionally followed by a
+            # new title for the corresponding section.
+            for line in self.col_map.splitlines():
+                col_spec, new_name = line.split(None, 1)
+                # Remember, we're off-by-one from the human-readable
+                # column numbers, because of 0-based indexing.  
+                # self.headers[int(col_num) - 1] = new_name
+                sys.stderr.write("DEBUG: col_spec: '%s'\n" % col_spec)
+                if new_name is not None:
+                    sys.stderr.write("       new_name: '%s'\n" % new_name)
+                else:
+                    sys.stderr.write("       new_name: NONE\n")
+                sys.stderr.write("\n")
+                # Also, if we didn't know the header data was all in
+                # the ASCII subset of UTF-8, we'd convert to/from
+                # unicode.  In general, this script needs to DTRT w/
+                # encodings.  Fill out wiki_page_skel to match
+                # col_map.
+            sys.exit(0)
             # Convert column reordering to a list of integers.
             self.col_order = [int(x) for x in self.col_order.split()]
             # If we have a category column, it may have been moved in
@@ -448,7 +554,6 @@ class WikiSession:
         except mwclient.errors.APIError as e:
             raise Exception("ERROR: unable to delete page: '%s'" % e.info)
 
-
 class CSVInput():
     """Iterator class encapsulating a CSV file as input."""
     def count_rows(self):
@@ -465,24 +570,6 @@ class CSVInput():
         
         return row_count
     
-    def rename_columns(self):
-        """Some columns (sections) might need new names in the wiki."""
-        col_renames = self.config.get('col_renames', None)
-        if col_renames is not None:
-            # Because of the ConfigParser syntax, the format we get the
-            # renames in is one big string, splittable on line breaks
-            # into a list of lines, where each line starts with a number
-            # identifying the column, followed by whitespace, followed by
-            # the new name for that column.
-            for line in col_renames.splitlines():
-                col_num, new_name = line.split(None, 1)
-                # Remember, we're off-by-one from the human-readable
-                # column numbers, because of 0-based indexing.  Also,
-                # if we didn't know the header data was all in the
-                # ASCII subset of UTF-8, we'd convert to/from unicode.
-                # In general, this script needs to DTRT w/ encodings.
-                self.headers[int(col_num) - 1] = new_name
-
     def __init__(self, csv_file, config):
         """Prepare CSV_FILE for input, with delimiters from CONFIG.
         CONFIG is a dict returned from parse_config_file(), or else
@@ -500,9 +587,9 @@ class CSVInput():
         # First get a row count, so we can pad the row number later.
         self.row_count = self.count_rows()
 
-        # Set column headers, renaming if needed
+        # Set column headers
         self.headers = next(self.csv_reader)
-        self.rename_columns()
+        # TODO: we used to rename them here
         
     def show_columns(self, out):
         """Print this CSV's column names, numbered, to OUT."""
