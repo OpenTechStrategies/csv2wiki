@@ -86,37 +86,36 @@ a sole "[default]" section and the following elements in that section:
                        0.  Omit this, or leave the value blank, to not
                        use categories at all.
 
-  col_map:             A map for column reordering, renames, and grouping.
+  col_map:             A map to reorder/rename/regroup columns into sections.
 
                        This is a versatile and multifaceted option --
                        the core of csv2wiki, really.  Spend some time
                        to get to know it.  You'll be glad you did.
 
-                       The col_map is a possibly multi-line list of
-                       column numbers and their corresponding new
-                       header names (i.e., section names in the wiki)
-                       that should be used for those columns instead
-                       of whatever names are given in the header row
-                       of the CSV.  
+                       The col_map is a typically multi-line list of
+                       column numbers, given in the desired order for
+                       the corresponding sections in the wiki page,
+                       with optional new section titles to replace the
+                       default column heading.
 
-                       Each line is a specifier of this form:
+                       Each line of col_map is a specifier of this form:
 
-                         COL_SPEC   Optional section name for that column
+                         COL_SPEC   OPTIONAL SECTION TITLE FOR THAT COLUMN
 
                        COL_SPEC contains no whitespace, and any amount
                        of whitespace may separate it from the optional
-                       section name string.  (If no section name is
+                       section title string.  If no section title is
                        given, then the original column header of that
-                       column is used for the section name.)
+                       column is used for the section title.
 
                        The order in which columns are specified, from
                        top to bottom in the col_map list, is the order
-                       in which corresponding sections in the wiki
-                       will be created.
+                       in which corresponding sections in each wiki
+                       page will be created.
 
                        COL_SPEC can be one of three things:
 
-                         1) A column number.  This is the simplest case.
+                         1) A column number (the simplest case).
   
                          2) A sequence of numbers separated by dots,
                             e.g., "30.27".  This creates a subsection in
@@ -132,21 +131,23 @@ a sole "[default]" section and the following elements in that section:
                             so that you can group other subsections
                             within it.
 
-                       A complete example specification:
+                       (TODO: generalize above to COL_SPEC.COL_SPEC etc.)
 
-                         col_map:   3 Applicant Name
-                                   12 Executive Summary
-                                   15 Detailed Proposal
-                                   comments Comments
-                                   comments.23 Reviewer CC Comments
-                                   comments.21 Reviewer BB Comments
-                                   comments.20 Reviewer AA Comments
-                                   30 Total Score
-                                   30.29 Reviewer CC Score
-                                   30.28 Reviewer BB Score
-                                   30.27 Reviewer AA Score
+                       Here is a complete example specification:
 
-                       Here are the wiki sections the above would produce:
+                         col_map:   3           Applicant Name
+                                   12           Executive Summary
+                                   15           Detailed Proposal
+                                   comments     Comments
+                                   comments.23  Reviewer CC Comments
+                                   comments.21  Reviewer BB Comments
+                                   comments.20  Reviewer AA Comments
+                                   30           Total Score
+                                   30.29        Reviewer CC Score
+                                   30.28        Reviewer BB Score
+                                   30.27        Reviewer AA Score
+
+                       These are the wiki sections the above would produce:
 
                          + Applicant Name
                          + Executive Summary
@@ -224,7 +225,17 @@ Here is an example config file:
   title_tmpl: Entry_{1}
   toc_name: List_of_Entries
   cat_col: 5
-  col_order: 1 5 2 3 4
+  col_map:   3           Applicant Name
+            12           Executive Summary
+            15           Detailed Proposal
+            comments     Comments
+            comments.23  Reviewer CC Comments
+            comments.21  Reviewer BB Comments
+            comments.20  Reviewer AA Comments
+            30           Total Score
+            30.29        Reviewer CC Score
+            30.28        Reviewer BB Score
+            30.27        Reviewer AA Score
 
 The "[default]" section name at the top must be present.  The .ini
 format always has sections, and for the sake of forward compatibility
@@ -402,33 +413,68 @@ class WikiSectionSkel():
     (Overall, the entire tree is effectively the data structure
     representation of the 'col_map' option in the config file.)"""
     def __init__(self, parent=None, column=None, sec_title=None):
-        """One (sub)section within a wiki.  If PARENT is None, then
-    this is the top element of a page tree, meaning this instance
-    represents the page itself, and SEC_TITLE must also be None.
+        """Create one (sub)section on a wiki page.  
 
-    Otherwise: PARENT is the WikiSectionSkel for the encapsulating
-    section that this (sub)section is in; COLUMN is either a number
-    (the column in the original csv file that corresponds to this
-    section) or a string (representing a new section created for
-    grouping subsections within it); and SEC_TITLE is either None
-    (meaning no change to the column header taken from the CSV) or a
-    string to use as this section's title (which is mandatory if
-    COLUMN is a string, since in that case there is no corresponding
-    column header from the CSV to use as the section title)."""
+        If PARENT is None, then this instance is the top element of a
+        page tree, meaning this instance represents the page itself,
+        so COLUMN and SEC_TITLE must also be None.
+
+        Otherwise: 
+
+          - PARENT is the WikiSectionSkel for the encapsulating
+            section that this (sub)section is in.
+
+          - COLUMN is either a number (the column in the original csv
+            file that corresponds to this section) or a string
+            (representing a new section created for grouping
+            subsections within it).
+
+          - SEC_TITLE is either None, meaning just use the column
+            header taken from the CSV, or a string to use as this
+            section's title.  But when COLUMN is a string, then
+            SEC_TITLE must also be a string, since in that case there
+            is no corresponding column header from the CSV to use as
+            the section title.  (While we could use the empty string
+            in that case, that feels a bit too relaxed.)"""
         self.parent = parent
         self.column = column
         self.sec_title = sec_title
-        if self.parent:
+
+        if self.parent is not None:
             self.level = self.parent.level + 1
+            self.parent.children.append(self)
+        elif self.column is not None or self.sec_title is not None:
+            raise Exception("ERROR: no parent, but column or sec_title given")
         else:
             self.level = 0
         # Ordered list of sections underneath this one.
         self.children = []
 
+    def __str__(self):
+        """String representation, normally used only for debugging."""
+        pad = "  " * self.level
+        title = "Untitled wiki section"
+        parent = "(no parent)"
+        column = 0
+        if self.sec_title:
+            title = self.sec_title
+        if self.parent and self.parent.sec_title:
+            parent = self.parent.sec_title
+        if self.column:
+            column = self.column
+        return "" \
+            + pad + "WikiSectionSkel '%s':\n" % title \
+            + pad + "  parent:    %s\n" % parent \
+            + pad + "  level:     %d\n" % self.level \
+            + pad + "  column:    %s\n" % column \
+            + pad + "  children:  %d\n" % len(self.children)
+
+
 class WikiSession:
-    """Connection to a wiki with a given username and password."""
-    def __init__(self, config):
-        """Log in to a wiki session, taking login parameters from CONFIG."""
+    """One session loading a CSV file into a wiki."""
+    def __init__(self, config, csv_input):
+        """Start a wiki session, taking login parameters from CONFIG and
+        column header information (if needed) from CSV_INPUT."""
         self.site_conn           = None  # will be a mwclient Site object
         self.wiki_url            = config['wiki_url']
         self.username            = config['username']
@@ -439,7 +485,9 @@ class WikiSession:
         self.last_cat            = config.get('last_cat', None)
         self.keep_empty          = config.get('keep_empty', False)
         self.path_to_api         = config.get('path_to_api')
-        self.col_map             = config.get('col_map', None)
+        self.wiki_page_skel      = WikiSectionSkel()
+        # This gets inhaled into self.wiki_page_skel later:
+        col_map                  = config.get('col_map', None) 
 
         if self.path_to_api is None:
             self.path_to_api = "/"
@@ -451,9 +499,12 @@ class WikiSession:
         self.csv2wiki_url = 'https://github.com/OpenTechStrategies/' \
                             + 'ots-tools/blob/master/csv2wiki'
 
-        self.wiki_page_skel = WikiSectionSkel()
-        cur_skel = self.wiki_page_skel
-        if self.col_map is not None:
+        if col_map is not None:
+            # col_map is a serious parsing job: it needs to be turned
+            # into a WikiSectionSkel tree.
+            cur_parent = self.wiki_page_skel
+            int_matcher = re.compile("^[0-9]+$")
+
             # Fill out wiki_page_skel to match col_map.
             # 
             # Because of the ConfigParser syntax, the format we get the
@@ -461,48 +512,47 @@ class WikiSession:
             # a list of lines, where each line starts with a column spec,
             # maybe followed by whitespace, optionally followed by a
             # new title for the corresponding section.
-            for line in self.col_map.splitlines():
+            for line in col_map.splitlines():
                 col_spec = None
-                new_name = None
+                new_title = None
+
                 try:
-                    col_spec, new_name = line.split(None, 1)
+                    col_spec, new_title = line.split(None, 1)
                 except ValueError:
                     col_spec = line
-                # If we didn't know the header data was all in the
-                # ASCII subset of UTF-8, we'd convert to/from unicode.
-                # In general, this script needs to DTRT w/ encodings.
-                col_num = None
-                ghost_sec = None
-                try:
-                    col_num = int(col_spec)
-                    sys.stderr.write("DEBUG: col_num: '%d'\n" % col_num)
-                    if new_name is not None:
-                        sys.stderr.write("       new_name: '%s'\n" % new_name)
-                    else:
-                        sys.stderr.write("       new_name: NONE\n")
-                    cur_skel.children.append(
-                        WikiSectionSkel(cur_skel, col_num, new_name))
-                except ValueError:
-                    # col_spec is one of "word", "word.N", or "N.M".
-                    sys.stderr.write("DEBUG: NON-SIMPLE: '%s' \n" % col_spec)
-            sys.exit(0)
-            # Convert column reordering to a list of integers.
-            self.col_order = [int(x) for x in self.col_order.split()]
-            # If we have a category column, it may have been moved in
-            # the reordering, so find it again.
-            if self.cat_col:
-                try:
-                    self.cat_col = self.col_order.index(self.cat_col)
-                except ValueError:
-                    # It is a user error to specify a cat_col that is
-                    # dropped due to being omitted in col_order.
-                    sys.stderr.write("ERROR: cat_col %d is not " % self.cat_col
-                                     + "included in col_order list\n")
-                    sys.exit(1)
-                # The config file specifies columns using 1-based
-                # indexing for humans, so we have to add 1 too
-                self.cat_col += 1
 
+                elts = col_spec.split(".")
+
+                i = len(elts) - 1
+                if i == cur_parent.level:
+                    pass  # normal case: make another section in this parent
+                elif i == cur_parent.level + 1:
+                    if len(cur_parent.children) == 0:
+                        raise Exception("ERROR: trying to make a subsection "
+                                        + "of a non-existent section")
+                    cur_parent = cur_parent.children[-1]
+                elif i > cur_parent.level:
+                    raise Exception("ERROR: section nesting jumped "
+                                    + "by more than one level")
+                else:  # i <= cur_parent.level
+                    while(cur_parent.level > i):
+                        cur_parent = cur_parent.parent
+
+                col_num = elts[-1]
+
+                if int_matcher.match(col_num):
+                    col_num = int(col_num)
+                elif new_title is None:
+                    raise Exception("ERROR: section title required " \
+                                    + "for '%s'" % elts[0])
+
+                new_skel = WikiSectionSkel(cur_parent, col_num, new_title)
+        else:  # no col_map provided, so contruct trivial one from headers
+            i = 1
+            for header in csv_input.headers:
+                WikiSectionSkel(self.wiki_page_skel, i, header)
+                i += 1
+            
         # Connect to the site.
         try:
             self.site_conn = mwclient.Site(self.wiki_url.split("://"), path=self.path_to_api)
@@ -600,7 +650,6 @@ class CSVInput():
 
         # Set column headers
         self.headers = next(self.csv_reader)
-        # TODO: we used to rename them here
         
     def show_columns(self, out):
         """Print this CSV's column names, numbered, to OUT."""
@@ -698,11 +747,6 @@ def create_pages(wiki_sess, csv_input, null_as_value, pare):
         # directly and not worry that that's slightly slower overall.
         return unidecode.unidecode_expect_nonascii(s)
 
-    # Put the headers in the config-specified order.
-    reordered_headers = []
-    for i in wiki_sess.col_order:
-        reordered_headers.append(csv_input.headers[i - 1])
-
     # read in csv
     row_num = 0
     for row in csv_input:
@@ -715,12 +759,8 @@ def create_pages(wiki_sess, csv_input, null_as_value, pare):
         if pare is not None and row_num % pare != 0:
             continue
 
-        # Put this row's columns in the config-specified order.
-        reordered_row = []
-        for i in wiki_sess.col_order:
-            reordered_row.append(row[i - 1])
-        reordered_row
-
+        wiki_sess.emit_page(row, row_num)
+        fooo
         # Looping over the cells in the row.  Name the sections
         # according to headers.
         cell_num = 0
@@ -962,7 +1002,7 @@ def main():
         csv_in.show_columns(sys.stdout)
         sys.exit(0)
 
-    wiki_sess = WikiSession(config)
+    wiki_sess = WikiSession(config, csv_in)
 
     if delete_matching is not None:
         if len(args) > 0:
