@@ -472,9 +472,19 @@ class WikiSectionSkel():
 
 class WikiSession:
     """One session loading a CSV file into a wiki."""
-    def __init__(self, config, csv_input):
+    # This is MediaWiki-specific right now.  We could conditionalize
+    # based on a new config parameter 'wiki_type'.  At least the
+    # do_skel(), do_page(), save_page(), and delete_page() methods
+    # would need to be updated.
+    def __init__(self, config, csv_input, null_as_value):
         """Start a wiki session, taking login parameters from CONFIG and
-        column header information (if needed) from CSV_INPUT."""
+        column header information (if needed) from CSV_INPUT.
+
+        If NULL_AS_VALUE, then when a CSV cell's entire content is
+        (case-insensitively) the word "null", treat the cell as having
+        that literal content, instead of treating the cell as empty."""
+        self.csv_input           = csv_input
+        self.null_as_value       = null_as_value
         self.site_conn           = None  # will be a mwclient Site object
         self.wiki_url            = config['wiki_url']
         self.username            = config['username']
@@ -581,9 +591,20 @@ class WikiSession:
         # cases together and use "-" as the go-to replacement.
         return s.replace("]", "-").replace("[", "-").replace("#", "-").replace("/", "-")
 
-    # Thse are completeley MediaWiki-specific right now.  We could
-    # conditionalize based on a new config parameter 'wiki_type'.
-    def write_page(self, page_name, text):
+    def format_cell(self, cell):
+        """Take the html in CELL and adjust it to be mediawiki-friendly.  
+        This is MediaWiki-specific, but I imagine a future version of
+        this might want to override with formatting for other wikis."""
+        # Mediawiki doesn't do tbody
+        cell = cell.replace("<tbody>", "").replace("</tbody>", "")
+        # Make soup
+        warnings.filterwarnings(
+            "ignore", category=UserWarning, module='bs4')
+        soup = BeautifulSoup(cell, "html.parser")
+        soup = wikify_anchors(soup)
+        return str(soup)
+
+    def save_page(self, page_name, text):
         """Make page PAGE_NAME in this wiki have TEXT,
         with the standard colophon appended."""
         # Put a colophon at the end of every page, because users need to
@@ -614,6 +635,104 @@ class WikiSession:
             page.delete()
         except mwclient.errors.APIError as e:
             raise Exception("ERROR: unable to delete page: '%s'" % e.info)
+
+    def do_skel(self, skel, page_name, page_text_so_far, 
+                row, row_num, categories):
+        """Return updated page text for a given section skel.
+        PAGE_TEXT_SO_FAR is the accumulating page text; ROW is a list
+        of cells from the csv; ROW_NUM is ROW's row number in the csv;
+        CATEGORIES is as per the 'categories' variable in
+        create_pages() (TBD: and yes, that's a lousy doc string move,
+        and yes, I'll fix it)."""
+        page = None
+        page_name = None
+        page_text = ""
+        categorized_p = False
+
+        cell = row[skel.column]
+
+        # Do certain things if the cell is effectively empty.
+        if cell is "" or ((not self.null_as_value) and cell.lower() == "null"):
+            # If the cell is effectively empty, do we skip it or
+            # use it?  The only circumstance under which we skip
+            # is if 'wiki_sess.keep_empty' is exactly False;
+            # otherwise, it's either True or is some string that
+            # we should use as the value for an empty cell.
+            if self.keep_empty is False:
+                continue
+            else:
+                if isinstance(self.keep_empty, str):
+                    cell_text = self.keep_empty
+                else:
+                    cell_text = ""
+        else:
+            cell_text = cell
+
+        if cell_num == self.cat_col:
+            cell_esc = self.wiki_escape(massage_string(cell))
+            cell_text = '[[:Category:' + cell_esc + '|' + cell_esc + ']]\n'
+            cell_text += '[[Category:' + cell_esc + ']]'
+            categorized_p = True
+            if categories.get(cell_esc) is None:
+                categories[cell_esc] = [page_name]
+            else:
+                categories[cell_esc].append(page_name)
+
+        ## Clear up formatting issues
+        cell_text = self.format_cell(cell_text)
+
+        fooo
+
+        # It's [cell_num - 1] below because we switched to 1-based
+        # indexing earlier.
+        page_text += "== " + reordered_headers[cell_num - 1] + " =="
+        page_text += "\n\n"
+        page_text += cell_text
+        page_text += "\n\n"
+
+        if not categorized_p:
+            # If this row did not fall into any category, then put it
+            # in the magical category whose name is the empty string.
+            if categories.get("") is None:
+                categories[""] = [page_name]
+            else:
+                categories[""].append(page_name)
+        
+    def do_page(self, row, row_num, categories):
+        """fooo"""
+        # Splice any requested columns into the page name.
+        #
+        # Prepend the row_num as the first element below, so that the
+        # user has access to the row number via the special code "{0}"
+        # in title_tmpl in the config file, and so that all the
+        # remaining columns use 1-based indexing, which matches
+        # how the user refers to them.
+        row_num_fmt = "{:0" + str(len(str(self.csv_input.row_count))) + "}"
+        row_num_str = row_num_fmt.format(row_num)
+        page_name = self.title_tmpl.format(*([row_num_str,] + row))
+        # The input is UTF-8, but for wiki page names we
+        # want to stick to plain old lower ASCII.
+        page_name = massage_string(page_name)
+        page_name = page_name.replace(" ", "_")
+        page_name = self.wiki_escape(page_name)
+        
+        # Wikimedia will convert &amp; to an ampersand and
+        # then consider that ampersand as the start of a new
+        # ampersand-encoded special char and then complains
+        # about an invalid page title.  We put underscores
+        # fore and aft to break up that second special char.
+        if re.search(r"&amp;.*;", page_name):
+            page_name = page_name.replace("&amp;", "_&amp;_")
+            page_name = page_name.replace("&amp;__", "&amp;_")
+            page_name = page_name.replace("__&amp;", "_&amp;")
+        
+        # Crawl down the page skel, appending page content as needed.
+        page_text = do_skel(self.wiki_page_skel, page_name, "", 
+                            row, row_num, categories)
+
+        self.save_page(page_name, page_text)
+        print(("CREATED PAGE: \"" + page_name + "\""))
+
 
 class CSVInput():
     """Iterator class encapsulating a CSV file as input."""
@@ -681,34 +800,10 @@ def wikify_anchors(soup):
                               'html.parser'))
     return soup
 
-def format_cell(cell):
-    """Take the html in CELL and adjust it to be mediawiki-friendly.  This
-is mediawiki-specific, but I imagine a future version of this might
-want to override with formatting for other wikis.
-
-    """
-
-    # Mediawiki doesn't do tbody
-    cell = cell.replace("<tbody>", "").replace("</tbody>", "")
-    
-    # Make soup
-    warnings.filterwarnings("ignore",
-                            category=UserWarning, module='bs4')
-    soup = BeautifulSoup(cell, "html.parser")
-    
-    soup = wikify_anchors(soup)
-    
-    return str(soup)
-
-
-def create_pages(wiki_sess, csv_input, null_as_value, pare):
+def create_pages(wiki_sess, csv_input, pare):
 
     """Create a wiki page in WIKI_SESS for each row in CSV_INPUT.
     The CSV must have at least one row of content.
-
-    If NULL_AS_VALUE, then when a CSV cell's entire content is
-    (case-insensitively) the word "null", treat the cell as having
-    that literal content, instead of treating the cell as empty.
 
     If PARE is not None, it is an integer indicating that only
     1/PARE rows should be handled, and the rest skipped."""
@@ -751,101 +846,10 @@ def create_pages(wiki_sess, csv_input, null_as_value, pare):
     row_num = 0
     for row in csv_input:
         row_num += 1
-        page = None
-        page_name = None
-        page_text = ""
-        categorized_p = False
-
         if pare is not None and row_num % pare != 0:
             continue
+        wiki_sess.do_page(row, row_num, categories)
 
-        wiki_sess.emit_page(row, row_num)
-        fooo
-        # Looping over the cells in the row.  Name the sections
-        # according to headers.
-        cell_num = 0
-        cell_text = None
-        for cell in reordered_row:
-            if cell_num == 0:
-                # For this new line, generate a mediawiki page
-                #
-                # Splice in any requested columns.  We prepend the
-                # row_num as the first element in the tuple, which
-                # brings two benefits.  First, the user get access
-                # to the row number, via the special code "{0}" in
-                # title_tmpl in the config file.  Second, all the
-                # other columns, which the user is likely to think
-                # of using 1-based indexing not 0-based, are now
-                # 1-based, because the row number is in the first
-                # slot (slot [0]) of the tuple. 
-                row_num_fmt = "{:0" + str(len(str(csv_input.row_count))) + "}"
-                row_num_str = row_num_fmt.format(row_num)
-                page_name = wiki_sess.title_tmpl.format(*([row_num_str,] + row))
-                # The input is UTF-8, but for wiki page names we
-                # want to stick to plain old lower ASCII.
-                page_name = massage_string(page_name)
-                page_name = page_name.replace(" ", "_")
-                page_name = wiki_sess.wiki_escape(page_name)
-
-                # Wikimedia will convert &ampl to an ampersand and
-                # then consider that ampersand as the start of a new
-                # ampersand-encoded special char and then complains
-                # about an invalid page title.  We put underscores
-                # fore and aft to break up that second special char.
-                if re.search(r"&amp;.*;", page_name):
-                    page_name = page_name.replace("&amp;", "_&amp;_")
-                    page_name = page_name.replace("&amp;__", "&amp;_")
-                    page_name = page_name.replace("__&amp;", "_&amp;")
-                
-                # Set the contents of each cell to their own section.
-            # Unconditionally increment the cell number; note this
-            # also switches us from 0-based to 1-based indexing.
-            cell_num += 1
-            # Do certain things if the cell is effectively empty.
-            if cell is "" or ((not null_as_value) and cell.lower() == "null"):
-                # If the cell is effectively empty, do we skip it or
-                # use it?  The only circumstance under which we skip
-                # is if 'wiki_sess.keep_empty' is exactly False;
-                # otherwise, it's either True or is some string that
-                # we should use as the value for an empty cell.
-                if wiki_sess.keep_empty is False:
-                    continue
-                else:
-                    if isinstance(wiki_sess.keep_empty, str):
-                        cell_text = wiki_sess.keep_empty
-                    else:
-                        cell_text = ""
-            else:
-                cell_text = cell
-            if cell_num == wiki_sess.cat_col:
-                cell_esc = wiki_sess.wiki_escape(massage_string(cell))
-                cell_text = '[[:Category:' + cell_esc + '|' + cell_esc + ']]\n'
-                cell_text += '[[Category:' + cell_esc + ']]'
-                categorized_p = True
-                if categories.get(cell_esc) is None:
-                    categories[cell_esc] = [page_name]
-                else:
-                    categories[cell_esc].append(page_name)
-
-            ## Clear up formatting issues
-            cell_text = format_cell(cell_text)
-
-            # It's [cell_num - 1] below because we switched to 1-based
-            # indexing earlier.
-            page_text += "== " + reordered_headers[cell_num - 1] + " =="
-            page_text += "\n\n"
-            page_text += cell_text
-            page_text += "\n\n"
-        if not categorized_p:
-            # If this row did not fall into any category, then put it
-            # in the magical category whose name is the empty string.
-            if categories.get("") is None:
-                categories[""] = [page_name]
-            else:
-                categories[""].append(page_name)
-        wiki_sess.write_page(page_name, page_text)
-        print(("CREATED PAGE: \"" + page_name + "\""))
-        
     # create the TOC page.
     toc_text = ""
     num_categories = len(list(categories.keys()))
@@ -876,13 +880,13 @@ def create_pages(wiki_sess, csv_input, null_as_value, pare):
         for pnam in categories[cat]:
             toc_text += '* [[' + pnam + ']]\n'
         toc_text += "\n"
-    wiki_sess.write_page(wiki_sess.toc_name, toc_text)
+    wiki_sess.save_page(wiki_sess.toc_name, toc_text)
     print(("CREATED TOC: \"" + wiki_sess.toc_name + "\""))
     
     # generate the category pages
     if wiki_sess.cat_col:
         for category in list(categories.keys()):
-            wiki_sess.write_page('Category:' + category, "")
+            wiki_sess.save_page('Category:' + category, "")
             print(("CREATED CATEGORY: \"" + category + "\""))
 
     return
@@ -1002,7 +1006,7 @@ def main():
         csv_in.show_columns(sys.stdout)
         sys.exit(0)
 
-    wiki_sess = WikiSession(config, csv_in)
+    wiki_sess = WikiSession(config, csv_in, null_as_value)
 
     if delete_matching is not None:
         if len(args) > 0:
