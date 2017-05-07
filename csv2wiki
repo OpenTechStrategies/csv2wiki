@@ -474,7 +474,7 @@ class WikiSession:
     """One session loading a CSV file into a wiki."""
     # This is MediaWiki-specific right now.  We could conditionalize
     # based on a new config parameter 'wiki_type'.  At least the
-    # do_skel(), do_page(), save_page(), and delete_page() methods
+    # do_skel(), make_page(), save_page(), and delete_page() methods
     # would need to be updated.
     def __init__(self, config, csv_input, null_as_value):
         """Start a wiki session, taking login parameters from CONFIG and
@@ -497,7 +497,17 @@ class WikiSession:
         self.path_to_api         = config.get('path_to_api')
         self.wiki_page_skel      = WikiSectionSkel()
         # This gets inhaled into self.wiki_page_skel later:
-        col_map                  = config.get('col_map', None) 
+        col_map                  = config.get('col_map', None)
+        
+        # Map category names to lists, where the elements of each list are
+        # the titles of the pages in the corresponding category.  The
+        # special category "" is used for pages that have no category.
+        # (If categories are not in use at all, or if no pages have a
+        # category, then all pages would be listed under "".)
+        self.categories = {}
+    
+        # Determines how many "0"s to prepend to a row number.
+        self.row_num_fmt = "{:0" + str(len(str(self.csv_input.row_count))) + "}"
 
         if self.path_to_api is None:
             self.path_to_api = "/"
@@ -509,9 +519,8 @@ class WikiSession:
         self.csv2wiki_url = 'https://github.com/OpenTechStrategies/' \
                             + 'ots-tools/blob/master/csv2wiki'
 
+        # Turn col_map into a WikiSectionSkel tree.
         if col_map is not None:
-            # col_map is a serious parsing job: it needs to be turned
-            # into a WikiSectionSkel tree.
             cur_parent = self.wiki_page_skel
             int_matcher = re.compile("^[0-9]+$")
 
@@ -533,6 +542,15 @@ class WikiSession:
 
                 elts = col_spec.split(".")
 
+                # TODO: We could and probably should add some more
+                # strictness here.  For example, we should enforce
+                # that all child sections must immediately follow
+                # their parent -- no stray children somewhere else.
+                # Also, what would happen if someone created a ghost
+                # section (e.g., "porg Principle Organization Info"),
+                # but then subsequent column mappings used some other
+                # name ("pflorg.N" instead of "porg.N")?  We should
+                # error in that case, but I'm not sure we do so now.
                 i = len(elts) - 1
                 if i == cur_parent.level:
                     pass  # normal case: make another section in this parent
@@ -591,6 +609,33 @@ class WikiSession:
         # cases together and use "-" as the go-to replacement.
         return s.replace("]", "-").replace("[", "-").replace("#", "-").replace("/", "-")
 
+    def massage_string(self, s):
+        """Convert non-ASCII string S to nearest lower ASCII equivalent."""
+        # TODO: This is really a todo for the unidecode module
+        # (https://pypi.python.org/pypi/Unidecode), not us.  The
+        # documentation says to just use the unidecode() function as
+        # the entry point.  That's an alias for
+        # unidecode_expect_ascii(), which should be the right choice
+        # when most of your input is the plain ASCII subset of UTF-8,
+        # because it tries to decode using an ASCII assumption and
+        # then catches the exception and tries again with non-ascii as
+        # the assumption in the rare case that the string is not
+        # ASCII.
+        #
+        # However, I think maybe it has a bug with respect to recent
+        # Python versions?  It tries to trap the exception by catching
+        # 'UnicodeEncodeError', but the error actually thrown is
+        # (reasonably enough) 'UnicodeDecodeError'.  So it just
+        # propagates that exception up the stack and never makes it to
+        # the unidecode_expect_nonascii() call that would have
+        # successfully decoded the string.
+        # /usr/local/lib/python2.7/dist-packages/unidecode/__init__.py
+        # has the details (on my system, at least).
+        #
+        # Anyway, the solution is to call unidecode_expect_nonascii()
+        # directly and not worry that that's slightly slower overall.
+        return unidecode.unidecode_expect_nonascii(s)
+
     def format_cell(self, cell):
         """Take the html in CELL and adjust it to be mediawiki-friendly.  
         This is MediaWiki-specific, but I imagine a future version of
@@ -636,83 +681,83 @@ class WikiSession:
         except mwclient.errors.APIError as e:
             raise Exception("ERROR: unable to delete page: '%s'" % e.info)
 
-    def do_skel(self, skel, page_name, page_text_so_far, 
-                row, row_num, categories):
-        """Return updated page text for a given section skel.
-        PAGE_TEXT_SO_FAR is the accumulating page text; ROW is a list
-        of cells from the csv; ROW_NUM is ROW's row number in the csv;
-        CATEGORIES is as per the 'categories' variable in
-        create_pages() (TBD: and yes, that's a lousy doc string move,
-        and yes, I'll fix it)."""
-        page = None
-        page_name = None
-        page_text = ""
-        categorized_p = False
+    def do_skel(self, skel, page_name, row, row_num):
+        """Return the text for a given section skel.
+        ROW is a list of cells from the csv; ROW_NUM is ROW's row
+        number in the csv."""
+        text = ""
 
-        cell = row[skel.column]
-
-        # Do certain things if the cell is effectively empty.
-        if cell is "" or ((not self.null_as_value) and cell.lower() == "null"):
-            # If the cell is effectively empty, do we skip it or
-            # use it?  The only circumstance under which we skip
-            # is if 'wiki_sess.keep_empty' is exactly False;
-            # otherwise, it's either True or is some string that
-            # we should use as the value for an empty cell.
-            if self.keep_empty is False:
-                continue
-            else:
-                if isinstance(self.keep_empty, str):
-                    cell_text = self.keep_empty
-                else:
-                    cell_text = ""
-        else:
-            cell_text = cell
-
-        if cell_num == self.cat_col:
-            cell_esc = self.wiki_escape(massage_string(cell))
-            cell_text = '[[:Category:' + cell_esc + '|' + cell_esc + ']]\n'
-            cell_text += '[[Category:' + cell_esc + ']]'
-            categorized_p = True
-            if categories.get(cell_esc) is None:
-                categories[cell_esc] = [page_name]
-            else:
-                categories[cell_esc].append(page_name)
-
-        ## Clear up formatting issues
-        cell_text = self.format_cell(cell_text)
-
-        fooo
-
-        # It's [cell_num - 1] below because we switched to 1-based
-        # indexing earlier.
-        page_text += "== " + reordered_headers[cell_num - 1] + " =="
-        page_text += "\n\n"
-        page_text += cell_text
-        page_text += "\n\n"
-
-        if not categorized_p:
-            # If this row did not fall into any category, then put it
-            # in the magical category whose name is the empty string.
-            if categories.get("") is None:
-                categories[""] = [page_name]
-            else:
-                categories[""].append(page_name)
-        
-    def do_page(self, row, row_num, categories):
-        """fooo"""
-        # Splice any requested columns into the page name.
+        # Special-casing the root skel like this is a bit ugly.  
+        # We just happen to know that it represents the page as a
+        # whole, and that therefore it corresponds to no column and
+        # will have no content of its own.
         #
-        # Prepend the row_num as the first element below, so that the
-        # user has access to the row number via the special code "{0}"
-        # in title_tmpl in the config file, and so that all the
-        # remaining columns use 1-based indexing, which matches
-        # how the user refers to them.
-        row_num_fmt = "{:0" + str(len(str(self.csv_input.row_count))) + "}"
-        row_num_str = row_num_fmt.format(row_num)
-        page_name = self.title_tmpl.format(*([row_num_str,] + row))
+        # The alternative would be for our caller to loop over the
+        # root skel's children calling do_skel() on each, instead of
+        # calling do_skel() once on the root and letting it recurse.
+        # But I think it's better to keep the knowledge of how to walk
+        # a skel here, and tolerate this special case.
+        if skel.level > 0:
+            if type(skel.column) is int:
+                cell = row[int(skel.column)]
+                # Do certain things if the cell is effectively empty.
+                if cell is "" or ((not self.null_as_value) 
+                                  and cell.lower() == "null"):
+                    # If the cell is effectively empty, do we skip it or
+                    # use it?  The only circumstance under which we skip
+                    # is if 'wiki_sess.keep_empty' is exactly False;
+                    # otherwise, it's either True or is some string that
+                    # we should use as the value for an empty cell.
+                    if self.keep_empty is False:
+                        next
+                    else:
+                        if isinstance(self.keep_empty, str):
+                            cell = self.keep_empty
+                        else:
+                            cell = ""
+            else:
+                cell = ""
+    
+            ## Clear up formatting issues
+            cell = self.format_cell(cell)
+    
+            if skel.column == self.cat_col:
+                cell_esc = self.wiki_escape(self.massage_string(cell))
+                cell = '[[:Category:' + cell_esc + '|' + cell_esc + ']]\n'
+                cell += '[[Category:' + cell_esc + ']]'
+                if self.categories.get(cell_esc) is None:
+                    self.categories[cell_esc] = [page_name]
+                else:
+                    self.categories[cell_esc].append(page_name)
+        
+            text += ("=" * skel.level) + " "
+            text += skel.sec_title or page_name
+            text += " " + ("=" * skel.level)
+            text += "\n\n"
+            text += cell
+            text += "\n\n"
+
+        for child in skel.children:
+            text += self.do_skel(child, page_name, row, row_num)
+
+        return text
+
+    def make_page(self, row):
+        """Build and save a page based on ROW.
+
+        ROW's first element is the row number as a properly padded
+        string, e.g., if the csv has >1000 but <10000 rows, and this
+        is the third row, then ROW[0] would be "0003".
+
+        ROW's subsequent elements are the cell values from the
+        corresponding row in the csv.  In other words, the csv 
+        cells are available using 1-based indexing, which matches 
+        how the user refers to column numbers in the config file."""
+        # Splice any requested columns into the page name.
+        page_name = self.title_tmpl.format(*row)
         # The input is UTF-8, but for wiki page names we
         # want to stick to plain old lower ASCII.
-        page_name = massage_string(page_name)
+        page_name = self.massage_string(page_name)
         page_name = page_name.replace(" ", "_")
         page_name = self.wiki_escape(page_name)
         
@@ -726,13 +771,93 @@ class WikiSession:
             page_name = page_name.replace("&amp;__", "&amp;_")
             page_name = page_name.replace("__&amp;", "_&amp;")
         
+        # How many pages have been categorized so far?
+        cats_count = sum(len(val) for val in self.categories.values())
+
         # Crawl down the page skel, appending page content as needed.
-        page_text = do_skel(self.wiki_page_skel, page_name, "", 
-                            row, row_num, categories)
+        page_text = self.do_skel(self.wiki_page_skel, page_name, 
+                                 row, self.categories)
+
+        # If the number of categorized pages didn't change, then
+        # this row (page) didn't fall into any named category, so put
+        # it in the magical category whose name is the empty string.
+        if cats_count == sum(len(val) for val in self.categories.values()):
+            if self.categories.get("") is None:
+                self.categories[""] = [page_name]
+            else:
+                self.categories[""].append(page_name)
 
         self.save_page(page_name, page_text)
         print(("CREATED PAGE: \"" + page_name + "\""))
 
+    def make_pages(self, pare):
+        """Create a wiki page for each row in the csv.
+        The csv must have at least one row of content.
+        If PARE is not None, it is an integer indicating that only
+        1/PARE rows should be handled, and the rest skipped."""
+    
+        # read in csv
+        row_num = 0
+        for row in self.csv_input:
+            row_num += 1
+            if pare is not None and row_num % pare != 0:
+                continue
+            # Prepend the row number as the first element below (as a
+            # zero-padded string), so that the user has access to the
+            # row number via the special code "{0}" in title_tmpl in
+            # the config file, and so that all the remaining columns
+            # use 1-based indexing, which matches how the user refers
+            # to columns in the config file.
+            row_num_str = self.row_num_fmt.format(row_num)
+            self.make_page([row_num_str] + row)
+    
+        # create the TOC page.
+        toc_text = ""
+        num_categories = len(list(self.categories.keys()))
+    
+        # This got too big to fit into a lambda anymore :-).
+        def categories_sorter(key):
+            "Return a descending sort value for category KEY."
+            if (self.last_cat is not None 
+                and key.strip().lower() == self.last_cat):
+                return 0
+            else:
+                return - len(self.categories[key])
+        
+        for cat in sorted(list(self.categories.keys()), key=categories_sorter):
+            if num_categories > 1:
+                usable_cat = cat
+                if usable_cat == "":
+                    # Yup, we're just going to hardcode this right here.
+                    # It's a very rare case: the conversion is using
+                    # categories, and we have more than one category
+                    # available, but some pages had no category.  So what
+                    # category should they go in (given that the TOC will
+                    # be organized into categories because multiple
+                    # categories are available)?  Answer: make one up.
+                    usable_cat = "csv2wiki Miscellaneous Default Category"
+                usable_cat = usable_cat + " (" + str(len(self.categories[cat])) + ")"
+                toc_text += "==== " + usable_cat + " ====\n\n"
+            for pnam in self.categories[cat]:
+                toc_text += '* [[' + pnam + ']]\n'
+            toc_text += "\n"
+        self.save_page(self.toc_name, toc_text)
+        print(("CREATED TOC: \"" + self.toc_name + "\""))
+        
+        # generate the category pages
+        if self.cat_col:
+            for category in list(self.categories.keys()):
+                self.save_page('Category:' + category, "")
+                print(("CREATED CATEGORY: \"" + category + "\""))
+    
+    def delete_pages(self, pat):
+        """Delete wiki pages whose names match pattern PAT."""
+        # Could change what="title" to what="text" to get full-text
+        # matching on page contents.  We might want to offer that option.
+        search_results = self.site_conn.search(pat, what="title")
+        for result in search_results:
+            self.delete_page(result['title'])
+            print(("DELETED PAGE: \"" + result['title'] + "\""))
 
 class CSVInput():
     """Iterator class encapsulating a CSV file as input."""
@@ -799,107 +924,6 @@ def wikify_anchors(soup):
                 BeautifulSoup("[{1} {0}]".format(a.text, a['href']), 
                               'html.parser'))
     return soup
-
-def create_pages(wiki_sess, csv_input, pare):
-
-    """Create a wiki page in WIKI_SESS for each row in CSV_INPUT.
-    The CSV must have at least one row of content.
-
-    If PARE is not None, it is an integer indicating that only
-    1/PARE rows should be handled, and the rest skipped."""
-
-    # Map category names to lists, where the elements of each list are
-    # the titles of the pages in the corresponding category.  The
-    # special category "" is used for pages that have no category.
-    # (If categories are not in use at all, or if no pages have a
-    # category, then all pages would be listed under "".)
-    categories = {}
-
-    def massage_string(s):
-        """Convert non-ASCII string S to nearest lower ASCII equivalent."""
-        # TODO: This is really a todo for the unidecode module
-        # (https://pypi.python.org/pypi/Unidecode), not us.  The
-        # documentation says to just use the unidecode() function as
-        # the entry point.  That's an alias for
-        # unidecode_expect_ascii(), which should be the right choice
-        # when most of your input is the plain ASCII subset of UTF-8,
-        # because it tries to decode using an ASCII assumption and
-        # then catches the exception and tries again with non-ascii as
-        # the assumption in the rare case that the string is not
-        # ASCII.
-        #
-        # However, I think maybe it has a bug with respect to recent
-        # Python versions?  It tries to trap the exception by catching
-        # 'UnicodeEncodeError', but the error actually thrown is
-        # (reasonably enough) 'UnicodeDecodeError'.  So it just
-        # propagates that exception up the stack and never makes it to
-        # the unidecode_expect_nonascii() call that would have
-        # successfully decoded the string.
-        # /usr/local/lib/python2.7/dist-packages/unidecode/__init__.py
-        # has the details (on my system, at least).
-        #
-        # Anyway, the solution is to call unidecode_expect_nonascii()
-        # directly and not worry that that's slightly slower overall.
-        return unidecode.unidecode_expect_nonascii(s)
-
-    # read in csv
-    row_num = 0
-    for row in csv_input:
-        row_num += 1
-        if pare is not None and row_num % pare != 0:
-            continue
-        wiki_sess.do_page(row, row_num, categories)
-
-    # create the TOC page.
-    toc_text = ""
-    num_categories = len(list(categories.keys()))
-
-    # This got too big to fit into a lambda anymore :-).
-    def categories_sorter(key):
-        "Return a descending sort value for category KEY."
-        if (wiki_sess.last_cat is not None 
-            and key.strip().lower() == wiki_sess.last_cat):
-            return 0
-        else:
-            return -len(categories[key])
-    
-    for cat in sorted(list(categories.keys()), key=categories_sorter):
-        if num_categories > 1:
-            usable_cat = cat
-            if usable_cat == "":
-                # Yup, we're just going to hardcode this right here.
-                # It's a very rare case: the conversion is using
-                # categories, and we have more than one category
-                # available, but some pages had no category.  So what
-                # category should they go in (given that the TOC will
-                # be organized into categories because multiple
-                # categories are available)?  Answer: make one up.
-                usable_cat = "csv2wiki Miscellaneous Default Category"
-            usable_cat = usable_cat + " (" + str(len(categories[cat])) + ")"
-            toc_text += "==== " + usable_cat + " ====\n\n"
-        for pnam in categories[cat]:
-            toc_text += '* [[' + pnam + ']]\n'
-        toc_text += "\n"
-    wiki_sess.save_page(wiki_sess.toc_name, toc_text)
-    print(("CREATED TOC: \"" + wiki_sess.toc_name + "\""))
-    
-    # generate the category pages
-    if wiki_sess.cat_col:
-        for category in list(categories.keys()):
-            wiki_sess.save_page('Category:' + category, "")
-            print(("CREATED CATEGORY: \"" + category + "\""))
-
-    return
-
-def delete_pages(wiki_sess, pat):
-    """Delete wiki pages in WIKI_SESS's wiki whose names match pattern PAT."""
-    # Could change what="title" to what="text" to get full-text
-    # matching on page contents.  We might want to offer that option.
-    search_results = wiki_sess.site_conn.search(pat, what="title")
-    for result in search_results:
-        wiki_sess.delete_page(result['title'])
-        print(("DELETED PAGE: \"" + result['title'] + "\""))
-    return
 
 def usage(errout=False):
     """Print a message explaining how to use this script.
@@ -1014,7 +1038,7 @@ def main():
             usage(errout=True)
             sys.exit(2)
         try:
-            delete_pages(wiki_sess, delete_matching)
+            wiki_sess.delete_pages(delete_matching)
         except IndexError as err:
             sys.stderr.write("ERROR: '%s'\n" % err)
             usage(errout=True)
@@ -1029,7 +1053,7 @@ def main():
             usage(errout=True)
             sys.exit(2)
         try:
-            create_pages(wiki_sess, csv_in, null_as_value, pare)
+            wiki_sess.make_pages(pare)
         except IndexError as err:
             sys.stderr.write("ERROR: '%s'\n" % err)
             usage(errout=True)
