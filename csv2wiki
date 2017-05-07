@@ -515,20 +515,20 @@ class WikiSession:
         If NULL_AS_VALUE, then when a CSV cell's entire content is
         (case-insensitively) the word "null", treat the cell as having
         that literal content, instead of treating the cell as empty."""
-        self.csv_input           = csv_input
-        self.null_as_value       = null_as_value
-        self.site_conn           = None  # will be a mwclient Site object
-        self.wiki_url            = config['wiki_url']
-        self.username            = config['username']
-        self.password            = config['password']
-        self.title_tmpl          = config['title_tmpl']
-        self.toc_name            = config['toc_name']
-        self.cat_col             = int(config.get('cat_col', 0))
-        self.last_cat            = config.get('last_cat', None)
-        self.keep_empty          = config.get('keep_empty', False)
-        self.path_to_api         = config.get('path_to_api')
-        self.wiki_page_skel      = WikiSectionSkel()
-        # This gets inhaled into self.wiki_page_skel later:
+        self._csv_input          = csv_input
+        self._null_as_value      = null_as_value
+        self._site_conn          = None  # will be a mwclient Site object
+        self._wiki_url           = config['wiki_url']
+        self._username           = config['username']
+        self._password           = config['password']
+        self._title_tmpl         = config['title_tmpl']
+        self._toc_name           = config['toc_name']
+        self._cat_col            = int(config.get('cat_col', 0))
+        self._last_cat           = config.get('last_cat', None)
+        self._keep_empty         = config.get('keep_empty', False)
+        self._path_to_api        = config.get('path_to_api')
+        self._wiki_page_skel     = WikiSectionSkel()
+        # This gets inhaled into self._wiki_page_skel later:
         col_map                  = config.get('col_map', None)
         
         # Map category names to lists, where the elements of each list are
@@ -536,24 +536,26 @@ class WikiSession:
         # special category "" is used for pages that have no category.
         # (If categories are not in use at all, or if no pages have a
         # category, then all pages would be listed under "".)
-        self.categories = {}
+        self._categories = {}
     
         # Determines how many "0"s to prepend to a row number.
-        self.row_num_fmt = "{:0" + str(len(str(self.csv_input.row_count))) + "}"
+        self._row_num_fmt = "{:0"                                      \
+                            + str(len(str(self._csv_input.row_count))) \
+                            + "}"
 
-        if self.path_to_api is None:
-            self.path_to_api = "/"
+        if self._path_to_api is None:
+            self._path_to_api = "/"
 
-        if self.last_cat is not None:
+        if self._last_cat is not None:
             # It's always used case-insensitively and w/o surrounding spaces
-            self.last_cat = self.last_cat.strip().lower()
+            self._last_cat = self._last_cat.strip().lower()
 
-        self.csv2wiki_url = 'https://github.com/OpenTechStrategies/' \
-                            + 'ots-tools/blob/master/csv2wiki'
+        self._csv2wiki_url = 'https://github.com/OpenTechStrategies/' \
+                             + 'ots-tools/blob/master/csv2wiki'
 
         # Turn col_map into a WikiSectionSkel tree.
         if col_map is not None:
-            cur_parent = self.wiki_page_skel
+            cur_parent = self._wiki_page_skel
             int_matcher = re.compile("^[0-9]+$")
 
             # Fill out wiki_page_skel to match col_map.
@@ -610,20 +612,20 @@ class WikiSession:
         else:  # no col_map provided, so contruct trivial one from headers
             i = 1
             for header in csv_input.headers:
-                WikiSectionSkel(self.wiki_page_skel, i, header)
+                WikiSectionSkel(self._wiki_page_skel, i, header)
                 i += 1
             
         # Connect to the site.
         try:
-            self.site_conn = mwclient.Site(self.wiki_url.split("://"), path=self.path_to_api)
+            self._site_conn = mwclient.Site(self._wiki_url.split("://"), path=self._path_to_api)
         except requests.exceptions.HTTPError as err: 
-            sys.stderr.write("ERROR: failed to connect to wiki URL '%s'\n" % self.wiki_url)
+            sys.stderr.write("ERROR: failed to connect to wiki URL '%s'\n" % self._wiki_url)
             sys.stderr.write("       Error details:\n")
             sys.stderr.write("       ('%s')\n" % err)
             sys.exit(1)
     
         try:
-            self.site_conn.login(self.username, self.password)
+            self._site_conn.login(self._username, self._password)
         except mwclient.errors.LoginError as err:
             sys.stderr.write("ERROR: Unable to log in to wiki; "
                              "check that username and password are correct.\n")
@@ -664,15 +666,15 @@ class WikiSession:
         colophon = "\n\n"                                           \
                    + '<span style="font-size:75%" >'                \
                    + "'''Colophon:''' This page was generated by "  \
-                   + '[' + self.csv2wiki_url + ' csv2wiki]. '       \
+                   + '[' + self._csv2wiki_url + ' csv2wiki]. '       \
                    + 'Manual changes to this page might be '        \
                    + 'overwritten by a subsequent run of csv2wiki.' \
                    + '</span>'                                      \
                    + '\n'
         # The log message (edit message, commit message, whatever): the
         # metadata you record in MediaWiki whenever you submit a change.
-        edit_msg = "Page generated by csv2wiki (" + self.csv2wiki_url + ")."
-        page = self.site_conn.pages[page_name]
+        edit_msg = "Page generated by csv2wiki (" + self._csv2wiki_url + ")."
+        page = self._site_conn.pages[page_name]
         try:
             page.save(text + colophon, edit_msg)
         except mwclient.errors.APIError as e:
@@ -680,7 +682,7 @@ class WikiSession:
 
     def delete_page(self, page_name):
         """Delete page PAGE_NAME from this wiki."""
-        page = self.site_conn.pages[page_name]
+        page = self._site_conn.pages[page_name]
         try:
             page.delete()
         except mwclient.errors.APIError as e:
@@ -706,18 +708,18 @@ class WikiSession:
             if type(skel.column) is int:
                 cell = row[int(skel.column)]
                 # Do certain things if the cell is effectively empty.
-                if cell is "" or ((not self.null_as_value) 
+                if cell is "" or ((not self._null_as_value) 
                                   and cell.lower() == "null"):
                     # If the cell is effectively empty, do we skip it or
                     # use it?  The only circumstance under which we skip
                     # is if 'wiki_sess.keep_empty' is exactly False;
                     # otherwise, it's either True or is some string that
                     # we should use as the value for an empty cell.
-                    if self.keep_empty is False:
+                    if self._keep_empty is False:
                         next
                     else:
-                        if isinstance(self.keep_empty, str):
-                            cell = self.keep_empty
+                        if isinstance(self._keep_empty, str):
+                            cell = self._keep_empty
                         else:
                             cell = ""
             else:
@@ -726,14 +728,14 @@ class WikiSession:
             ## Clear up formatting issues
             cell = self._format_cell(cell)
     
-            if skel.column == self.cat_col:
+            if skel.column == self._cat_col:
                 cell_esc = self._wiki_escape(massage_string(cell))
                 cell = '[[:Category:' + cell_esc + '|' + cell_esc + ']]\n'
                 cell += '[[Category:' + cell_esc + ']]'
-                if self.categories.get(cell_esc) is None:
-                    self.categories[cell_esc] = [page_name]
+                if self._categories.get(cell_esc) is None:
+                    self._categories[cell_esc] = [page_name]
                 else:
-                    self.categories[cell_esc].append(page_name)
+                    self._categories[cell_esc].append(page_name)
         
             text += ("=" * skel.level) + " "
             text += skel.sec_title or page_name
@@ -759,7 +761,7 @@ class WikiSession:
         cells are available using 1-based indexing, which matches 
         how the user refers to column numbers in the config file."""
         # Splice any requested columns into the page name.
-        page_name = self.title_tmpl.format(*row)
+        page_name = self._title_tmpl.format(*row)
         # The input is UTF-8, but for wiki page names we
         # want to stick to plain old lower ASCII.
         page_name = massage_string(page_name)
@@ -777,20 +779,20 @@ class WikiSession:
             page_name = page_name.replace("__&amp;", "_&amp;")
         
         # How many pages have been categorized so far?
-        cats_count = sum(len(val) for val in self.categories.values())
+        cats_count = sum(len(val) for val in self._categories.values())
 
         # Crawl down the page skel, appending page content as needed.
-        page_text = self._do_skel(self.wiki_page_skel, page_name, 
-                                 row, self.categories)
+        page_text = self._do_skel(self._wiki_page_skel, page_name, 
+                                 row, self._categories)
 
         # If the number of categorized pages didn't change, then
         # this row (page) didn't fall into any named category, so put
         # it in the magical category whose name is the empty string.
-        if cats_count == sum(len(val) for val in self.categories.values()):
-            if self.categories.get("") is None:
-                self.categories[""] = [page_name]
+        if cats_count == sum(len(val) for val in self._categories.values()):
+            if self._categories.get("") is None:
+                self._categories[""] = [page_name]
             else:
-                self.categories[""].append(page_name)
+                self._categories[""].append(page_name)
 
         self._save_page(page_name, page_text)
         print(("CREATED PAGE: \"" + page_name + "\""))
@@ -803,7 +805,7 @@ class WikiSession:
     
         # read in csv
         row_num = 0
-        for row in self.csv_input:
+        for row in self._csv_input:
             row_num += 1
             if pare is not None and row_num % pare != 0:
                 continue
@@ -813,23 +815,23 @@ class WikiSession:
             # the config file, and so that all the remaining columns
             # use 1-based indexing, which matches how the user refers
             # to columns in the config file.
-            row_num_str = self.row_num_fmt.format(row_num)
+            row_num_str = self._row_num_fmt.format(row_num)
             self._make_page([row_num_str] + row)
     
         # create the TOC page.
         toc_text = ""
-        num_categories = len(list(self.categories.keys()))
+        num_categories = len(list(self._categories.keys()))
     
         # This got too big to fit into a lambda anymore :-).
         def categories_sorter(key):
             "Return a descending sort value for category KEY."
-            if (self.last_cat is not None 
-                and key.strip().lower() == self.last_cat):
+            if (self._last_cat is not None 
+                and key.strip().lower() == self._last_cat):
                 return 0
             else:
-                return - len(self.categories[key])
+                return - len(self._categories[key])
         
-        for cat in sorted(list(self.categories.keys()), key=categories_sorter):
+        for cat in sorted(list(self._categories.keys()), key=categories_sorter):
             if num_categories > 1:
                 usable_cat = cat
                 if usable_cat == "":
@@ -841,17 +843,17 @@ class WikiSession:
                     # be organized into categories because multiple
                     # categories are available)?  Answer: make one up.
                     usable_cat = "csv2wiki Miscellaneous Default Category"
-                usable_cat = usable_cat + " (" + str(len(self.categories[cat])) + ")"
+                usable_cat = usable_cat + " (" + str(len(self._categories[cat])) + ")"
                 toc_text += "==== " + usable_cat + " ====\n\n"
-            for pnam in self.categories[cat]:
+            for pnam in self._categories[cat]:
                 toc_text += '* [[' + pnam + ']]\n'
             toc_text += "\n"
-        self._save_page(self.toc_name, toc_text)
-        print(("CREATED TOC: \"" + self.toc_name + "\""))
+        self._save_page(self._toc_name, toc_text)
+        print(("CREATED TOC: \"" + self._toc_name + "\""))
         
         # generate the category pages
-        if self.cat_col:
-            for category in list(self.categories.keys()):
+        if self._cat_col:
+            for category in list(self._categories.keys()):
                 self._save_page('Category:' + category, "")
                 print(("CREATED CATEGORY: \"" + category + "\""))
     
@@ -859,24 +861,24 @@ class WikiSession:
         """Delete wiki pages whose names match pattern PAT."""
         # Could change what="title" to what="text" to get full-text
         # matching on page contents.  We might want to offer that option.
-        search_results = self.site_conn.search(pat, what="title")
+        search_results = self._site_conn.search(pat, what="title")
         for result in search_results:
             self.delete_page(result['title'])
             print(("DELETED PAGE: \"" + result['title'] + "\""))
 
 class CSVInput():
     """Iterator class encapsulating a CSV file as input."""
-    def count_rows(self):
+    def _count_rows(self):
         """Count rows in the csv file, accounting for the headers"""
         
-        self.csv_fh.seek(0)
-        row_count = sum(1 for row in self.csv_reader) - 1
+        self._csv_fh.seek(0)
+        row_count = sum(1 for row in self._csv_reader) - 1
         
         # Reset the reader for our callers.
-        self.csv_fh.seek(0)
-        self.csv_reader = csv.reader(self.csv_fh,
-                            delimiter=self.config.get('delimiter', ','),
-                            quotechar=self.config.get('quotechar', '"'))
+        self._csv_fh.seek(0)
+        self._csv_reader = csv.reader(self._csv_fh,
+                            delimiter=self._config.get('delimiter', ','),
+                            quotechar=self._config.get('quotechar', '"'))
         
         return row_count
     
@@ -884,21 +886,21 @@ class CSVInput():
         """Prepare CSV_FILE for input, with delimiters from CONFIG.
         CONFIG is a dict returned from parse_config_file(), or else
         it is None, in which case default config values are used."""
-        self.csv_reader          = None  # will be csv.reader object
+        self._csv_reader          = None  # will be csv.reader object
         self.headers             = []
         self.row_count           = None  # will be num rows not counting header
         
-        self.config = config or {}
-        self.csv_fh = open(csv_file)
-        self.csv_reader = csv.reader(self.csv_fh,
-                            delimiter=self.config.get('delimiter', ','),
-                            quotechar=self.config.get('quotechar', '"'))       
+        self._config = config or {}
+        self._csv_fh = open(csv_file)
+        self._csv_reader = csv.reader(self._csv_fh,
+                            delimiter=self._config.get('delimiter', ','),
+                            quotechar=self._config.get('quotechar', '"'))       
 
         # First get a row count, so we can pad the row number later.
-        self.row_count = self.count_rows()
+        self.row_count = self._count_rows()
 
         # Set column headers
-        self.headers = next(self.csv_reader)
+        self.headers = next(self._csv_reader)
         
     def show_columns(self, out):
         """Print this CSV's column names, numbered, to OUT."""
@@ -908,11 +910,11 @@ class CSVInput():
 
     def __iter__(self):
         """Return the underlying iterator for this CSV's rows."""
-        return self.csv_reader
+        return self._csv_reader
 
     def __next__(self):
         """Return the next row in this CSV."""
-        return next(self.csv_reader)
+        return next(self._csv_reader)
     
 def wikify_anchors(soup):
     """Return new soup with all of SOUP's href-bearing anchors wikified.
