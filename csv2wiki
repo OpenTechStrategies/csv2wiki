@@ -100,29 +100,32 @@ a sole "[default]" section and the following elements in that section:
 
                        Each line of col_map is a specifier of this form:
 
-                         COL_SPEC   OPTIONAL SECTION TITLE FOR THAT COLUMN
+                         COL_SPEC  ACTION_SPEC  [NEW_SECTION_TITLE]
 
-                       COL_SPEC contains no whitespace, and any amount
-                       of whitespace may separate it from the optional
-                       section title string.  If no section title is
-                       given, then the original column header of that
-                       column is used for the section title.
+                       (The "[" square braces "]" are not part of the
+                       line; they just indicate the optionality of the
+                       NEW_SECTION_TITLE, as described later on.)
 
-                       The order in which columns are specified, from
-                       top to bottom in the col_map list, is the order
-                       in which corresponding sections in each wiki
-                       page will be created.
+                       COL_SPEC controls which column is being handled
+                       on this line of the col_map.  COL_SPEC contains
+                       no whitespace, and any amount of whitespace may
+                       separate it from the ACTION_SPEC.
+
+                       The order in which columns are specified via
+                       COL_SPEC, from top to bottom in the col_map
+                       list, is the order in which corresponding
+                       sections in each wiki page will be created.
 
                        COL_SPEC can be one of three things:
 
-                         1) A column number (the simplest case).
+                         1) Simplest case: a column number.
   
                          2) A sequence of numbers separated by dots,
                             e.g., "30.27".  This creates a subsection in
                             the wiki page.  The last component ("27" here)
                             is the column being specified, and the order
                             in which the line appears in col_map just
-                            shows that subsection's place *within* the
+                            shows that subsection's place *within* an
                             overall encapsulating section ("30").
   
                          3) A string containing no dots and at least one
@@ -131,59 +134,57 @@ a sole "[default]" section and the following elements in that section:
                             so that you can group other subsections
                             within it.
 
-                       (TODO: generalize above to COL_SPEC.COL_SPEC etc.)
+                       (TODO: generalize this documentation to cover
+                       COL_SPEC.COL_SPEC etc.)
 
-                       Here is a complete example specification:
+                       ACTION_SPEC must be one of the following:
 
-                         col_map:   3           Applicant Name
-                                   12           Executive Summary
-                                   15           Detailed Proposal
-                                   comments     Comments
-                                   comments.23  Reviewer CC Comments
-                                   comments.21  Reviewer BB Comments
-                                   comments.20  Reviewer AA Comments
-                                   30           Total Score
-                                   30.29        Reviewer CC Score
-                                   30.28        Reviewer BB Score
-                                   30.27        Reviewer AA Score
+                         - "TITLE": The next thing on the line must be
+                                    the new title for the section
+                                    corresponding to this column.
 
-                       These are the wiki sections the above would produce:
+                         - "AS-IS": Use the column header for this
+                                    column as the title for its
+                                    section.  Anything following this
+                                    is ignored; you might want to put
+                                    "// [Expected Column Header Here]"
+                                    or something similar, so that your
+                                    col_map tree remains a readable
+                                    reflection of the expected
+                                    structure for each wiki page.
 
-                         + Applicant Name
-                         + Executive Summary
-                         + Detailed Proposal
-                         + Comments
-                           - Reviewer CC Comments
-                           - Reviewer BB Comments
-                           - Reviewer AA Comments
-                         + Total Score
-                           - Reviewer CC Score
-                           - Reviewer BB Score
-                           - Reviewer AA Score
+                         - "MERGE": Don't create a new section (or
+                                    subsection, or whatever it would
+                                    have been).  Instead, append this
+                                    column's content directly to the
+                                    current section.
 
-                       So even if the original CSV had the header
-                       "Appl. Name" for column 3 and "Exec. Summ." for
-                       column 12, the wiki has "Applicant Name" and
-                       "Executive Summary", and so on.
+                       Finally, NEW_SECTION_TITLE (only present when
+                       ACTION_SPEC is "TITLE", but required then),
+                       gives the new section title to use instead of
+                       the column header from the CSV.
 
-                       You can also use this to omit columns from the
-                       conversion entirely: if you don't list a
-                       column, it simply won't be included as a wiki
-                       section at all.
+                       The example config file later on shows a sample
+                       col_map value and the wiki page it would produce.
 
-                       No column number may be repeated; if there are
-                       repeats, the behavior is undefined.
+                       You can use col_map to omit columns from the
+                       conversion entirely.  If you never mention a
+                       given column in a COL_SPEC, it won't be
+                       included in any wiki section at all.
 
-                       The column numbers used in the spec always
+                       The column numbers used in the COL_SPEC always
                        refer to the original column numbers in the
                        CSV; any re-ordering is applied afterwards.
+                       Likewise, any reorderings or omissions done in
+                       col_map do not affect column references in
+                       other run-time configuration parameters.  
 
-                       Any reordering or omissions done in col_map do
-                       not affect column references in other run-time
-                       configuration parameters.  In other words, all
-                       column numbers specified in the config file
-                       refer to the original CSV file, not to the
-                       reordering used for the wiki output.
+                       In other words, all column numbers specified in
+                       the config file refer to the original CSV file,
+                       not to the reordering used for the wiki output.
+
+                       Column numbers may appear in more than one
+                       COL_SPEC, although this is not recommended.
 
   last_cat:            The (case-insensitive) name of the category, if
                        any, that should always be listed last in the
@@ -225,21 +226,46 @@ Here is an example config file:
   title_tmpl: Entry_{1}
   toc_name: List_of_Entries
   cat_col: 5
-  col_map:   3           Applicant Name
-            12           Executive Summary
-            15           Detailed Proposal
-            comments     Comments
-            comments.23  Reviewer CC Comments
-            comments.21  Reviewer BB Comments
-            comments.20  Reviewer AA Comments
-            30           Total Score
-            30.29        Reviewer CC Score
-            30.28        Reviewer BB Score
-            30.27        Reviewer AA Score
-
+  col_map:   3           TITLE Applicant Name
+            12           TITLE Executive Summary
+            15           TITLE Detailed Proposal
+            address      TITLE Applicant Address
+            address.21   MERGE // street address
+            address.22   MERGE // city, province
+            address.23   MERGE // country, postal code
+            comments     TITLE Comments
+            comments.26  TITLE Reviewer CC Comments
+            comments.25  TITLE Reviewer BB Comments
+            comments.24  TITLE Reviewer AA Comments
+            30           AS-IS // "Total Score" column in original CSV
+            30.29        TITLE Reviewer CC Score
+            30.28        TITLE Reviewer BB Score
+            30.27        TITLE Reviewer AA Score
+            
 The "[default]" section name at the top must be present.  The .ini
 format always has sections, and for the sake of forward compatibility
 this script requires the one section's name to be "default".
+
+The wiki page produced by the above col_map value would have this
+structure:
+
+  + Applicant Name
+  + Executive Summary
+  + Detailed Proposal
+  + Applicant Address
+    (column 21, 22, and 23 values here)
+  + Comments
+    - Reviewer CC Comments
+    - Reviewer BB Comments
+    - Reviewer AA Comments
+  + Total Score
+    - Reviewer CC Score
+    - Reviewer BB Score
+    - Reviewer AA Score
+
+So even if the original CSV had the header "Appl. Name" for column 3
+and "Exec. Summ." for column 12, the wiki would have "Applicant Name"
+and "Executive Summary", and so on.
 
 Command-line options:
 ---------------------
@@ -442,40 +468,41 @@ class WikiSectionSkel():
     parent and no sec_title -- represents the wiki page as a whole.
     (Overall, the entire tree is effectively the data structure
     representation of the 'col_map' option in the config file.)"""
-    def __init__(self, parent=None, column=None, sec_title=None):
+    def __init__(self, parent=None, columns=[], sec_title=None):
         """Create one (sub)section on a wiki page.  
 
         If PARENT is None, then this instance is the top element of a
         page tree, meaning this instance represents the page itself,
-        so COLUMN and SEC_TITLE must also be None.
+        COLUMNS must be the empty list, and SEC_TITLE must be None.
 
         Otherwise: 
 
           - PARENT is the WikiSectionSkel for the encapsulating
             section that this (sub)section is in.
 
-          - COLUMN is either a number (the column in the original csv
-            file that corresponds to this section) or a string
-            (representing a new section created for grouping
-            subsections within it).
+          - COLUMNS is either a list of numbers (the columns, in the
+            original csv file that corresponds to this section, of the
+            cells in this csv row whose content should be used as the
+            content of this section) or a string (representing a new
+            section, created for grouping subsections within it).
 
           - SEC_TITLE is either None, meaning just use the column
             header taken from the CSV, or a string to use as this
-            section's title.  But when COLUMN is a string, then
+            section's title.  But when COLUMNS is a string, then
             SEC_TITLE must also be a string, since in that case there
             is no corresponding column header from the CSV to use as
             the section title.  (While we could use the empty string
             in that case, that feels a bit too relaxed.)"""
         self.parent = parent
-        self.column = column
+        self.columns = columns
         self.sec_title = sec_title
 
         # Set level based on parent's level (if any).
         if self.parent is not None:
             self.level = self.parent.level + 1
             self.parent.children.append(self)
-        elif self.column is not None or self.sec_title is not None:
-            raise Exception("ERROR: no parent, but column or sec_title given")
+        elif self.columns != [] or self.sec_title is not None:
+            raise Exception("ERROR: no parent, but columns nor sec_title given")
         else:
             self.level = 0
 
@@ -487,18 +514,15 @@ class WikiSectionSkel():
         pad = "  " * self.level
         title = "Untitled wiki section"
         parent = "(no parent)"
-        column = 0
-        if self.sec_title:
+        if self.sec_title is not None:
             title = self.sec_title
-        if self.parent and self.parent.sec_title:
+        if self.parent and self.parent.sec_title is not None:
             parent = self.parent.sec_title
-        if self.column:
-            column = self.column
         return "" \
             + pad + "WikiSectionSkel '%s':\n" % title \
             + pad + "  parent:    %s\n" % parent \
             + pad + "  level:     %d\n" % self.level \
-            + pad + "  column:    %s\n" % column \
+            + pad + "  columns:   %s\n" % self.columns \
             + pad + "  children:  %d\n" % len(self.children)
 
 
@@ -567,12 +591,28 @@ class WikiSession:
             # new title for the corresponding section.
             for line in col_map.splitlines():
                 col_spec = None
+                action_spec = None
                 new_title = None
 
                 try:
-                    col_spec, new_title = line.split(None, 1)
+                    col_spec, action_spec, new_title = line.split(None, 2)
                 except ValueError:
-                    col_spec = line
+                    col_spec, action_spec = line
+
+                # Enforce the format.
+                action_spec = action_spec.upper()
+                if action_spec == "TITLE":
+                    if new_title is None:
+                        raise Exception("ERROR: missing new title in "
+                                        "col_map line:\n'%s':" % line)
+                elif action_spec == "AS-IS" or action_spec == "MERGE":
+                    # If anything's in new_title, it's just a comment
+                    # for those reading the config file and is not
+                    # meant to actually be used as the new title.
+                    new_title = None
+                else:
+                    raise Exception("ERROR: unknown action in "
+                                    + "col_map line\n:'%s'" % line)
 
                 elts = col_spec.split(".")
 
@@ -591,28 +631,49 @@ class WikiSession:
                 elif i == cur_parent.level + 1:
                     if len(cur_parent.children) == 0:
                         raise Exception("ERROR: trying to make a subsection "
-                                        + "of a non-existent section")
+                                        + "of a non-existent section:\n"
+                                        + "'%s'" % line)
                     cur_parent = cur_parent.children[-1]
                 elif i > cur_parent.level:
                     raise Exception("ERROR: section nesting jumped "
-                                    + "by more than one level")
+                                    + "by more than one level:\n"
+                                    + "'%s'" % line)
                 else:  # i <= cur_parent.level
                     while(cur_parent.level > i):
                         cur_parent = cur_parent.parent
 
-                col_num = elts[-1]
+                col_val = elts[-1]
+                col_num = None
+                if int_matcher.match(col_val):
+                    col_num = int(col_val)
 
-                if int_matcher.match(col_num):
-                    col_num = int(col_num)
-                elif new_title is None:
-                    raise Exception("ERROR: section title required " \
-                                    + "for '%s'" % elts[0])
-
-                new_skel = WikiSectionSkel(cur_parent, col_num, new_title)
+                if action_spec == "MERGE":
+                    if col_num is None:
+                        raise Exception("ERROR: cannot merge a non-column "
+                                        + "section:\n"
+                                        + "'%s'" % line)
+                    sys.stderr.write("DEBUG: col_val: '%s', col_num: '%d'\n"
+                                     % (col_val, col_num))
+                    # fooo TODO: working here:
+                    # The parent has "address" or "porg" or something
+                    # for the column.  But we want the parent to be
+                    # able to contain the merged content.  The
+                    # solution is to stop type-overloading the
+                    # 'columns' field and do something smarter.
+                    cur_parent.columns.append(col_num)
+                else:
+                    # These instantiations return the new skel, but we
+                    # toss the return value because the new skel is
+                    # also recorded in cur_parent's children, which is
+                    # all we need.
+                    if col_num is None:
+                        WikiSectionSkel(cur_parent, col_val, new_title)
+                    else:
+                        WikiSectionSkel(cur_parent, [col_num,], new_title)
         else:  # no col_map provided, so contruct trivial one from headers
             i = 1
             for header in csv_input.headers:
-                WikiSectionSkel(self._wiki_page_skel, i, header)
+                WikiSectionSkel(self._wiki_page_skel, [i,], header)
                 i += 1
             
         # Connect to the site.
@@ -705,43 +766,48 @@ class WikiSession:
         # But I think it's better to keep the knowledge of how to walk
         # a skel here, and tolerate this special case.
         if skel.level > 0:
-            if type(skel.column) is int:
-                cell = row[int(skel.column)]
-                # Do certain things if the cell is effectively empty.
-                if cell is "" or ((not self._null_as_value) 
-                                  and cell.lower() == "null"):
-                    # If the cell is effectively empty, do we skip it or
-                    # use it?  The only circumstance under which we skip
-                    # is if 'wiki_sess.keep_empty' is exactly False;
-                    # otherwise, it's either True or is some string that
-                    # we should use as the value for an empty cell.
+            section_body = ""
+            if type(skel.columns) is list:
+                for column in skel.columns:
+                    cell = row[int(column)]
+                    # Clear up formatting issues
+                    cell = self._format_cell(cell)
+                    # Handle category column if needed. 
+                    if column == self._cat_col:
+                        cell_esc = self._wiki_escape(massage_string(cell))
+                        cell = '[[:Category:' + cell_esc + '|' + cell_esc + ']]\n'
+                        cell += '[[Category:' + cell_esc + ']]'
+                        if self._categories.get(cell_esc) is None:
+                            self._categories[cell_esc] = [page_name]
+                        else:
+                            self._categories[cell_esc].append(page_name)
+                    # Absorb it into the section.
+                    if section_body != "":
+                       section_body += "\n\n"
+                    section_body += cell
+                # Do certain things if the cell is still effectively empty.
+                # fooo TODO: the "null" test here might be wrong now
+                if section_body is "" or ((not self._null_as_value) 
+                                  and section_body.lower() == "null"):
+                    # If the section body is effectively empty, do we
+                    # skip it or use it?  The only circumstance under
+                    # which we skip is if 'wiki_sess.keep_empty' is
+                    # exactly False; otherwise, it's either True or is
+                    # some string that we should use as the value for
+                    # an empty section.
                     if self._keep_empty is False:
                         next
                     else:
                         if isinstance(self._keep_empty, str):
-                            cell = self._keep_empty
+                            section_body = self._keep_empty
                         else:
-                            cell = ""
-            else:
-                cell = ""
+                            section_body = ""
     
-            ## Clear up formatting issues
-            cell = self._format_cell(cell)
-    
-            if skel.column == self._cat_col:
-                cell_esc = self._wiki_escape(massage_string(cell))
-                cell = '[[:Category:' + cell_esc + '|' + cell_esc + ']]\n'
-                cell += '[[Category:' + cell_esc + ']]'
-                if self._categories.get(cell_esc) is None:
-                    self._categories[cell_esc] = [page_name]
-                else:
-                    self._categories[cell_esc].append(page_name)
-        
             text += ("=" * skel.level) + " "
             text += skel.sec_title or page_name
             text += " " + ("=" * skel.level)
             text += "\n\n"
-            text += cell
+            text += section_body
             text += "\n\n"
 
         for child in skel.children:
