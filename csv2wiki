@@ -682,11 +682,20 @@ class WikiSession:
                         self._categories[cell_esc].append(page_name)
                 text += "\n" + cell + "\n"
 
-        # fooo TODO: Handle {N} substitution, and check page_name logic
-        if text == "" and self._keep_empty is False:
-            return ""  # early out
-        elif text == "" and isinstance(self._keep_empty, str):
-            text = "\n" + self._keep_empty + "\n"
+        if text == "":
+            if len(skel.columns) == 0:
+                # Sections that don't directly include columns don't
+                # get the self._keep_empty treatment; instead, they
+                # are always included.
+                text = "\n"
+            elif self._keep_empty is False:
+                # Early out: If this section does have columns, but
+                # none of those columns had text and run-time config
+                # didn't say to keep empty sections, then the section
+                # itself shouldn't even be included.
+                return ""
+            else:
+                text = "\n" + self._keep_empty + "\n"
 
         return ("=" * skel.level)                                  \
             + " " + (skel.title.format(*self._csv_input.headers))  \
