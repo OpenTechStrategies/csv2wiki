@@ -305,8 +305,10 @@ Typically, PATTERN will be similar to the title_tmpl config element,
 since --delete-matching is most often used to delete pages originally
 created with this script.
 
-   (TODO: Page deletion does not yet de-list the removed pages from
-          the generated TOC page.  We should fix that.)
+PATTERN seems to work best as a single-word component of a wiki page
+title.  For example, in a wiki that had a bunch of pages with names
+like "Fish_238_Food_For_Frogs", "Fish_239_Food_For_Frogs", etc, using
+"Fish_.*" and even "Fish_" for PATTERN failed, whereas "Fish" succeeded.
 
 Dependencies and Troubleshooting
 --------------------------------
@@ -499,6 +501,9 @@ class WikiSession:
         """Start a wiki session, taking login parameters from CONFIG and
         column header information (if needed) from CSV_INPUT.
 
+        If CSV_INPUT is None, then this WikiSession is just for
+        deleting wiki pages.
+
         If NULL_AS_VALUE, then when a CSV cell's entire content is
         (case-insensitively) the word "null", treat the cell as having
         that literal content, instead of treating the cell as empty."""
@@ -526,9 +531,10 @@ class WikiSession:
         self._categories = {}
     
         # Determines how many "0"s to prepend to a row number.
-        self._row_num_fmt = "{:0"                                      \
-                            + str(len(str(self._csv_input.row_count))) \
-                            + "}"
+        if self._csv_input is not None:
+            self._row_num_fmt = "{:0"                                      \
+                                + str(len(str(self._csv_input.row_count))) \
+                                + "}"
 
         if self._path_to_api is None:
             self._path_to_api = "/"
@@ -950,13 +956,6 @@ def main():
             sys.stderr.write("ERROR: unrecognized option '%s'\n" % o)
             bad_opt_seen = True
 
-    if len(args) < 1:
-        sys.stderr.write("ERROR: missing CSV_FILE argument\n")
-        sys.exit(2)
-    elif len(args) > 1:
-        sys.stderr.write("ERROR: too many arguments; expected only CSV_FILE\n")
-        sys.exit(2)
-
     if config is None and not show_columns:
         sys.stderr.write("ERROR: missing config file; use -c to supply it\n")
         usage(errout=True)
@@ -970,7 +969,15 @@ def main():
     if bad_opt_seen:
         sys.exit(2)
 
-    csv_in = CSVInput(args[0], config)
+    if not delete_matching:
+        if len(args) < 1:
+            sys.stderr.write("ERROR: missing CSV_FILE argument\n")
+            sys.exit(2)
+        elif len(args) > 1:
+            sys.stderr.write("ERROR: too many arguments; "
+                             "expected only CSV_FILE\n")
+            sys.exit(2)
+        csv_in = CSVInput(args[0], config)
 
     if show_columns:
         csv_in.show_columns(sys.stdout)
