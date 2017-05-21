@@ -28,3 +28,5 @@ known issues; pull requests are welcome.
 
 csv2wiki is free software, distributed under the [GNU Affero General
 Public License version 3](LICENSE.md).
+
+If you like csv2wiki, you might also like [csvkit](http://csvkit.rtfd.org/).
