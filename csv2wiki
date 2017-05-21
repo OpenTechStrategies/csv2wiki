@@ -42,7 +42,8 @@ a sole "[default]" section and the following elements in that section:
                        "https://www.example.com/mwiki", etc.
 
   username:            User account with write/create permission in the wiki.
-                       (With --delete, user needs page-delete permission.)
+                       (If the --delete-matching option is passed, then
+                       this user must have page-delete permission.)
 
   password:            The wiki password corresponding to the username.
 
