@@ -523,6 +523,10 @@ class WikiSession:
         # This gets inhaled into self._section_structure later:
         sec_map                  = config.get('sec_map', None)
         
+        # This maps page titles to True, so this session can remember
+        # every page created and thus protect against double creation.
+        self._page_titles = {}
+
         # Map category names to lists, where the elements of each list are
         # the titles of the pages in the corresponding category.  The
         # special category "" is used for pages that have no category.
@@ -626,6 +630,10 @@ class WikiSession:
     def _save_page(self, page_title, text):
         """Make page PAGE_TITLE in this wiki have TEXT,
         with the standard colophon appended."""
+        if page_title in self._page_titles:
+            raise Exception("ERROR: tried to save page '%s' " % page_title
+                            + "a second time")
+        self._page_titles[page_title] = True
         # Put a colophon at the end of every page, because users need to
         # know that the page was auto-generated.  For one thing, that
         # might make them think twice about manually editing it, lest
