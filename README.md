@@ -2,10 +2,9 @@
 
 Open source script to convert rows in a CSV file to pages in a wiki.
 
-Right now only [MediaWiki](https://mediawiki.org/) instances are
-supported, but it would not be too hard to extend this to support
-other wiki APIs.  Currently requires Python 2.7; we may switch to
-Python 3.0 later.  Basic usage:
+Right now only [MediaWiki](https://mediawiki.org/) is supported,
+but it would not be too hard to extend this to support other
+wiki APIs.  Requires Python 3.  Basic usage:
 
         $ csv2wiki -c CONFIG [OPTIONS] CSV
 
@@ -18,8 +17,9 @@ CSV should be included, a template for naming the resultant wiki
 pages, etc.  Then you run the script at the command line, passing the
 config file with the -c option and the CSV file as an argument.
 
-A sample of csv2wiki in action (along with a config file to drive it)
-can be found in the
+A sample of csv2wiki in action (along with a
+[config file](https://github.com/OpenTechStrategies/MacFound/blob/master/csv2wiki-config.tmpl)
+to drive it) can be found in the
 [MacArthur repository](https://github.com/OpenTechStrategies/MacFound).
 
 See the [bug
