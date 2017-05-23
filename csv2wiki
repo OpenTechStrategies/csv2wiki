@@ -272,6 +272,8 @@ since it's how the config file is indicated in the first place.
                        that's just a kind of conversion error and is
                        really an indication that the cell is empty.)
 
+  -q | --quiet         Be silent except for error messages.
+
   --pare N             Convert only 1/N of the CSV rows to wiki pages.
                        This is useful for doing test conversions of a
                        large CSV file, when you don't want to convert
@@ -497,7 +499,7 @@ class WikiSession:
     # based on a new config parameter 'wiki_type'.  At least the
     # _do_skel(), _make_page(), _save_page(), and delete_page() methods
     # would need to be updated.
-    def __init__(self, config, csv_input, null_as_value):
+    def __init__(self, config, csv_input, null_as_value, msg_out):
         """Start a wiki session, taking login parameters from CONFIG and
         column header information (if needed) from CSV_INPUT.
 
@@ -506,9 +508,14 @@ class WikiSession:
 
         If NULL_AS_VALUE, then when a CSV cell's entire content is
         (case-insensitively) the word "null", treat the cell as having
-        that literal content, instead of treating the cell as empty."""
+        that literal content, instead of treating the cell as empty.
+
+        If MSG_OUT is not None, it is an output file, and progress
+        messages will be written to it regarding page creation and
+        deletion, TOC creation, and category creation."""
         self._csv_input          = csv_input
         self._null_as_value      = null_as_value
+        self._msg_out            = msg_out
         self._site_conn          = None  # will be a mwclient Site object
         self._wiki_url           = config['wiki_url']
         self._username           = config['username']
@@ -626,6 +633,11 @@ class WikiSession:
         soup = BeautifulSoup(cell, "html.parser")
         soup = wikify_anchors(soup)
         return str(soup)
+
+    def _maybe_msg(self, msg):
+        """Write MSG to self._msg_out, unless the latter is None."""
+        if self._msg_out is not None:
+            self._msg_out.write(msg)
 
     def _save_page(self, page_title, text):
         """Make page PAGE_TITLE in this wiki have TEXT,
@@ -757,7 +769,7 @@ class WikiSession:
                 self._categories[""].append(page_title)
 
         self._save_page(page_title, page_text)
-        print(("CREATED PAGE: \"" + page_title + "\""))
+        self._maybe_msg(("CREATED PAGE: \"" + page_title + "\"\n"))
 
     def make_pages(self, pare):
         """Create a wiki page for each row in the csv.
@@ -811,13 +823,13 @@ class WikiSession:
                 toc_text += '* [[' + pnam + ']]\n'
             toc_text += "\n"
         self._save_page(self._toc_name, toc_text)
-        print(("CREATED TOC: \"" + self._toc_name + "\""))
+        self._maybe_msg(("CREATED TOC: \"" + self._toc_name + "\"\n"))
         
         # generate the category pages
         if self._cat_col:
             for category in list(self._categories.keys()):
                 self._save_page('Category:' + category, "")
-                print(("CREATED CATEGORY: \"" + category + "\""))
+                self._maybe_msg(("CREATED CATEGORY: \"" + category + "\"\n"))
     
     def delete_pages(self, pat):
         """Delete wiki pages whose names match pattern PAT."""
@@ -826,7 +838,7 @@ class WikiSession:
         search_results = self._site_conn.search(pat, what="title")
         for result in search_results:
             self.delete_page(result['title'])
-            print(("DELETED PAGE: \"" + result['title'] + "\""))
+            self._maybe_msg(("DELETED PAGE: \"" + result['title'] + "\"\n"))
 
 class CSVInput():
     """Iterator class encapsulating a CSV file as input."""
@@ -934,9 +946,10 @@ def main():
     """
     try:
         opts, args = getopt.getopt(sys.argv[1:], 
-                                   'h?d:c:',
+                                   'h?qd:c:',
                                    ["help",
                                     "usage",
+                                    "quiet"
                                     "null-as-value",
                                     "pare=",
                                     "delete-matching=",
@@ -951,6 +964,7 @@ def main():
     config = None
     wiki_sess = None
     delete_matching = None
+    msg_out = sys.stdout
     bad_opt_seen = False
     null_as_value = False
     pare = None
@@ -961,6 +975,8 @@ def main():
             sys.exit(0)
         elif o in ("-d", "--delete-matching",):
             delete_matching = a
+        elif o in ("-q", "--quiet",):
+            msg_out = None
         elif o in ("--null-as-value",):
             null_as_value = True
         elif o in ("--pare",):
@@ -1000,7 +1016,7 @@ def main():
         csv_in.show_columns(sys.stdout)
         sys.exit(0)
 
-    wiki_sess = WikiSession(config, csv_in, null_as_value)
+    wiki_sess = WikiSession(config, csv_in, null_as_value, msg_out)
 
     if delete_matching is not None:
         if len(args) > 0:
