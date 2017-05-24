@@ -185,6 +185,34 @@ a sole "[default]" section and the following elements in that section:
                        page never affects config file references to
                        column numbers.
 
+  exclusions:          A list of criteria by which to exclude some rows.
+
+                       Each line begins with a column number, followed
+                       by a colon and some whitespace, followed by some
+                       exclusion criteria.
+
+                       Each criterion is either numeric or string-based. 
+
+                       If numeric, there can be multiple criteria per
+                       line, separated by whitespace, and each one is
+                       either N or N-M (where N and M are decimal
+                       numbers), with the latter representing a range.
+
+                       If string-based, there can only be one
+                       criterion per line.  It must be in
+                       double-quotes (that's how we know it's a
+                       string) and it is a regular expression. 
+
+                       In a given row, if the named column matches any
+                       of the criteria (numerically if numbers, or
+                       with a regexp match if a string), then that
+                       entire row is included in the wiki.
+
+                       Here is an example 'exclusions' list:
+
+                         sec_map:  14: 3  5  11-17
+                                   29: ".*ennsylvania.*"
+
   last_cat:            The (case-insensitive) name of the category, if
                        any, that should always be listed last in the
                        table of contents, even if that category contains
@@ -527,8 +555,11 @@ class WikiSession:
         self._keep_empty         = config.get('keep_empty', False)
         self._path_to_api        = config.get('path_to_api')
         self._section_structure  = []  # A list of WikiSectionSkel objects.
+        self._exclusions         = {}  # See initialization for description. 
         # This gets inhaled into self._section_structure later:
         sec_map                  = config.get('sec_map', None)
+        # This gets inhaled into self._exclusions later:
+        exclusions               = config.get('exclusions', None)
         
         # This maps page titles to True, so this session can remember
         # every page created and thus protect against double creation.
@@ -592,6 +623,37 @@ class WikiSession:
             for i in range(1, len(csv_input.headers)):
                 self._section_structure.append(
                     WikiSectionSkel(1, "{%d}" % i, (i,)))
+
+        if exclusions is not None:
+            # We need to turn exclusions into self._exclusions.  Every
+            # line of exclusions is of the form:
+            #
+            #   NUM: CRITERIA
+            #
+            # Based on CRITERIA, set self._exclusions[NUM] to one of:
+            # 
+            #   - A regular expression matcher (based on string)
+            #   - A list, each of whose elements is either:
+            #     + a number
+            #     + a tuple of two numbers (indicating a range)
+
+            # As with sec_map, it's a big string splittable on line breaks.
+            for line in exclusions.splitlines():
+                col_num, rest = line.split(":", 1)
+                col_num = int(col_num)
+                rest = rest.strip()
+                if rest[0] == '"':
+                    self._exclusions = re.compile(rest[1:len(rest) - 1])
+                else:
+                    lst = []
+                    num_groups = rest.split()
+                    for criterion in num_groups:
+                        if criterion.find("-") != -1:
+                            upper, lower = criterion.split("-")
+                            lst.append((int(upper), int(lower),))
+                        else:
+                            lst.append(int(criterion))
+                    self._exclusions[col_num] = lst
 
         # Connect to the site.
         try:
@@ -771,6 +833,42 @@ class WikiSession:
         self._save_page(page_title, page_text)
         self._maybe_msg(("CREATED PAGE: \"" + page_title + "\"\n"))
 
+    def _exclude(self, row):
+        """Return True iff ROW should be excluded."""
+        re_matcher_type = type(re.compile(""))
+        for col, excl in self._exclusions.items():
+            if type(excl) == re_matcher_type:
+                sys.stderr.write("DEBUG: GOT REGEXP (%d)\n" % col)
+                if excl.match(row[col]):
+                    sys.stderr.write("DEBUG: re-exclude %d[%d] ('%s')\n"
+                                     % (row, col, row[col]))
+                    return True
+            elif type(excl) == list:
+                for elt in excl:
+                    if type(elt) == tuple:
+                        sys.stderr.write("DEBUG: GOT TUPLE (%d: %s)\n" 
+                                         % (col, elt))
+                        sys.stderr.write(
+                            "DEBUG: passing on tuple %s for %d[%d] (%s)\n"
+                            % (elt, row, col, row[col]))
+                    elif type(elt) == int:
+                        sys.stderr.write("DEBUG: GOT INT (%d: %s)\n" 
+                                         % (col, elt))
+                        sys.stderr.write("DEBUG: row[%d] is: %d\n" 
+                                         % (col, int(row[col])))
+                        try:
+                            if int(row[col]) == elt:
+                                sys.stderr.write(
+                                    "DEBUG: int-exclude %d[%d] (%s)\n"
+                                    % (row, col, row[col]))
+                                return True
+                        except Exception:
+                            # TODO: check that it was about int conversion
+                            pass
+            else:
+                raise Exception("ERROR: unknown exclusion kind: '%s'" % excl)
+        return False
+
     def make_pages(self, pare):
         """Create a wiki page for each row in the csv.
         The csv must have at least one row of content.
@@ -790,7 +888,10 @@ class WikiSession:
             # use 1-based indexing, which matches how the user refers
             # to columns in the config file.
             row_num_str = self._row_num_fmt.format(row_num)
-            self._make_page([row_num_str] + row)
+            if not self._exclude([row_num_str] + row):
+                # self._make_page([row_num_str] + row)
+                # KFF DEBUG
+                sys.stderr.write("DEBUG: skipping row %d\n" % row_num)
     
         # create the TOC page.
         toc_text = ""
