@@ -738,7 +738,6 @@ class WikiSession:
         # The input is UTF-8, but for wiki page names we
         # want to stick to plain old lower ASCII.
         page_title = massage_string(page_title)
-        page_title = page_title.replace(" ", "_")
         page_title = self._wiki_escape(page_title)
         
         # Wikimedia will convert &amp; to an ampersand and
