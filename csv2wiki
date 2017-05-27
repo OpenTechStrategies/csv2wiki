@@ -358,6 +358,19 @@ Dependencies and Troubleshooting
   that is, the Microsoft Windows / MS-DOS standard for line endings,
   which uses both characters together at the end of each line.
 
+* If your CSV includes HTML links that embed images or videos, you may
+  need to put something like this in MediaWiki's LocalSettings.php:
+
+    # Makes, e.g., "{{#ev:youtube|some_youtube_video_id}}" work,
+    # but you'll need to convert HTML links to EmbedVideo syntax.
+    # See https://www.mediawiki.org/wiki/Extension:EmbedVideo.
+    wfLoadExtension("EmbedVideo");
+    
+    # Makes HTML <img> tags work directly.
+    # See https://www.mediawiki.org/wiki/Manual:$wgAllowImageTag.
+    $wgAllowImageTag = true;
+
+
 * If you run create/delete multiple times, you may need to run
   
     $ php maintenance/rebuildall.php
