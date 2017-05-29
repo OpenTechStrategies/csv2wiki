@@ -1,12 +1,10 @@
 # csv2wiki: CSV->wiki converter
 
-Open source script to convert rows in a CSV file to pages in a wiki.
+[csv2wiki](csv2wiki): An open source script to convert rows in a CSV file to pages in a wiki.
 
-[csv2wiki](csv2wiki) requires Python 3.  Right now, only
+csv2wiki requires Python 3.  So far, only
 [MediaWiki](https://mediawiki.org/) is supported, but it would not be
-hard to extend it to support other wiki APIs.
-
-Basic usage: 
+hard to extend it to support other wiki APIs.  Basic usage: 
 
         $ csv2wiki -c CONFIG [OPTIONS] CSV
 
@@ -20,7 +18,7 @@ pages, etc.  Then you run the script at the command line, passing the
 config file with the -c option and the CSV file as an argument.
 
 A sample of csv2wiki in action (along with a
-[config file](https://github.com/OpenTechStrategies/MacFound/blob/master/csv2wiki-config.tmpl)
+[config file](https://github.com/OpenTechStrategies/MacFound/blob/master/macfound-internal-csv2wiki-config.tmpl)
 to drive it) can be found in the
 [MacArthur repository](https://github.com/OpenTechStrategies/MacFound).
 
@@ -40,32 +38,34 @@ across all rows in the spreadsheet.  Run
 
         $ python3 ./find-unique-columns --help
 
-to see usage.  If you run it on the accompanying test data
-spreadsheet, [test-input.csv](test-input.csv), for example like this:
+to see usage.  For example, if you can run it on the accompanying test
+data spreadsheet, [test-input.csv](test-input.csv) like this
 
-        $ ./find-unique-columns -g 2,4 -g 3,4 -g 1,6 -g 2,6 -g 3,6 -g 2,3 -s "-" test-input.csv
+        $ ./find-unique-columns -g 2,4,6 -g 3,4 -g 6,1 -g 2,6 -g 3,6 -g 2,3 -s "-" test-input.csv
 
-You should see output like this:
+it will test every individual column, plus six specified combinations
+of columns of which three will turn out to be unique:
 
         Individual columns that are unique across all rows:
         
           1. Identifying Number
           5. Ridiculously Unique Random String
         
-        Unique combination: 2-4
-        
-          2. Not-Quite-Unique Name
-          4. Non-Unique Vegetable
-        
         Unique combination: 2-3
         
           2. Not-Quite-Unique Name
           3. Non-Unique Animal
         
-        Unique combination: 1-6
+        Unique combination: 2-4-6
         
-          1. Identifying Number
+          2. Not-Quite-Unique Name
+          4. Non-Unique Vegetable
           6. Something That's The Same In Every Row
+        
+        Unique combination: 6-1
+        
+          6. Something That's The Same In Every Row
+          1. Identifying Number
     
 ## Related projects
 

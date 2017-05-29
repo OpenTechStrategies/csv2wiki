@@ -224,11 +224,11 @@ def main():
     # All the information is now in 'columns_and_combinations'.
     # Start the output phase.
 
-    single_unique_columns = [x for x in columns_and_combinations
-                             if isinstance(x, int) and columns_and_combinations[x]]
+    single_unique_columns = sorted([x for x in columns_and_combinations
+                                    if isinstance(x, int) and columns_and_combinations[x]])
 
-    combined_unique_columns = [x for x in columns_and_combinations
-                               if isinstance(x, str) and columns_and_combinations[x]]
+    combined_unique_columns = sorted([x for x in columns_and_combinations
+                                      if isinstance(x, str) and columns_and_combinations[x]])
 
     # Report on individually unique columns.
     if len(single_unique_columns) == 0:
