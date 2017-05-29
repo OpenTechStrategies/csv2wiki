@@ -1,0 +1,254 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+#
+# Find [combinations of] columns whose values are unique in every row in a CSV.
+# https://github.com/OpenTechStrategies/csv2wiki/blob/master/find-unique-columns
+#
+# Copyright (C) 2017 Open Tech Strategies, LLC
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU Affero General Public License as published
+# by the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+# GNU Affero General Public License for more details.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+__doc__ = """\
+Basic usage:
+
+  $ ./find-unique-columns [[-g N,M,... [-g P,Q...]] -s SEP] CSV_FILE
+
+The output first shows columns that are individually unique (if any):
+
+  Individual columns that are unique across all rows:
+
+      1. Some column header 
+      5. Yet another column header
+     23. foo column header
+     35. bar column header
+    220. baz column header
+
+Or if there are no single unique columns, then you'll see this:
+
+  No individual columns were unique across all rows.
+
+You can also ask about particular combinations of columns, using the
+'-g' / '--group' option (multiple times) and the '-s' / '--separator'
+option (once, but required when '--group' is used).  Here's how:
+
+  $ ./find-unique-columns --group=5,8,29 --separator="_" input.csv
+
+The output will report on whether or not that combination is unique
+when concatenated together in every row, with the indicated separator
+joining the values.  Each unique combination is reported like this:
+
+  Unique combination: 5_8_29
+
+     5. Yet another column header
+     8. And so on
+    29. And so forth
+
+Non-unique combinations won't be represented in the output at all.
+
+You can pass '-g' / '--group' more than once, to ask about multiple
+combinations of columns; the same separator is used for all of them.
+
+The reason the separator is required is that there are pathological
+cases where concatenating values together might be unique with some
+separators (or with no separator) but not with others, when the suffix
+of one column's value in a given row happens to combine with the
+prefix of another columns value in a way that causes a collision.  To
+keep things simple, only one separator is supported per invocation --
+that is, the same separator is used for all column combinations.
+Because, really, how likely are you to be testing different column
+groups *and* different separators at the same time?
+
+It is an error to ask about only one column as a combination.  Since
+any single unique column would be reported in the first part of the
+output, it's only meaningful to ask about combinations of two or more.
+
+Note:
+
+The 'csvstat' program in csvkit (see http://csvkit.rtfd.org/ and
+https://github.com/wireservice/csvkit) can be used to find
+single-column unique values, in a somewhat cumbersome way: you have to
+look at the "Unique values:" field in the output section for each
+column, and compare those values with the "Row count" at the end.  But
+I couldn't figure out any way to test for unique column combinations
+with 'csvstat', and it was faster to write this script than to keep
+experimenting.  If you know of a way to do all of this with csvkit,
+please file an issue in github.com/OpenTechStrategies/csv2wiki/ and
+we'll deprecate this script in favor of that solution.  -kfogel """
+
+import csv
+import re
+import getopt, sys
+
+
+def usage(errout=False):
+    """Print a message explaining how to use this script.
+    Print to stdout, unless ERROUT, in which case print to stderr."""
+    out = sys.stderr if errout else sys.stdout
+    out.write(__doc__)
+
+
+def main():
+    """
+    By default, creates wiki pages from a supplied CSV.  Optionally,
+    deletes those pages instead.
+
+    """
+    # List of lists.  Each sub-list is a list of column numbers
+    # (integers) to test for uniqueness as a group with separator.
+    column_combinations = []
+    separator = None  # Must be set if column_combinations is non-empty.
+
+    try:
+        opts, args = getopt.getopt(sys.argv[1:], 'h?g:s:',
+                                   ["help", "usage",
+                                    "group=", "separator=",])
+    except getopt.GetoptError as err:
+        sys.stderr.write("ERROR: '%s'\n" % err)
+        sys.stderr.write("Run with '--help' flag to see usage.\n")
+        sys.exit(2)
+
+    for o, a in opts:
+        if o in ("-h", "-?", "--help", "--usage",):
+            usage()
+            sys.exit(0)
+        elif o in ("-g", "--group",):
+            this_combination = a.split(",")
+            for i in range(len(this_combination)):
+                this_combination[i] = int(this_combination[i])
+            column_combinations.append(this_combination)
+        elif o in ("-s", "--separator",):
+            if separator is not None:
+                sys.stderr.write("ERROR: cannot specify multiple separators\n")
+                sys.stderr.write("Run with '--help' flag to see usage.\n")
+                sys.exit(2)
+            separator = a
+            num_re = re.compile(".*[0-9].*")
+            if num_re.match(separator):
+                sys.stderr.write("ERROR: sorry, undocumented restriction: "
+                                 "separator cannot contain numbers\n")
+                sys.stderr.write("ERROR: I mean, come on.  Really?\n")
+                sys.stderr.write("Run with '--help' flag to see usage.\n")
+                sys.exit(2)
+        else:
+            sys.stderr.write("ERROR: unrecognized option '%s'\n" % o)
+            sys.exit(2)
+
+    if len(args) == 0:
+        sys.stderr.write("ERROR: CSV input file required\n")
+        sys.stderr.write("Run with '--help' to see usage.\n")
+        sys.exit(2)
+    if column_combinations and separator is None:
+        sys.stderr.write("ERROR: must specify a separator with column group\n")
+        sys.stderr.write("Run with '--help' to see usage.\n")
+        sys.exit(2)
+    if separator is not None and not column_combinations:
+        sys.stderr.write("ERROR: separator specified without column group\n")
+        sys.stderr.write("Run with '--help' to see usage.\n")
+        sys.exit(2)
+    if column_combinations:
+        for this_combination in column_combinations:
+            if len(this_combination) < 2:
+                sys.stderr.write(
+                    "ERROR: each column combination needs at least 2 columns\n")
+                sys.stderr.write("Run with '--help' to see usage.\n")
+                sys.exit(2)
+
+    csv_reader = csv.reader(open(args[0]), delimiter=',', quotechar='"')
+
+    # Set column headers, using 1-based indexing.
+    headers = [None,] + next(csv_reader)
+    
+    # Later when we're printing column numbers, we'll want this.
+    col_fmt = "{0: >%d}" % len(str(len(headers[1:])))
+
+    # A dictionary whose keys are column numbers (integers) or column
+    # combinations (strings of numbers joined by the separator), and
+    # whose values are one of two things:
+    #
+    #    - False: we've already discovered that this column or
+    #      combination is not unique, so there's no point looking at
+    #      more rows.
+    #
+    #    - Sub-dictionary: keys are cell strings, values are True (but
+    #      ignored).  If we encounter the same cell string more than
+    #      once, then we replace the entire sub-dict with False, 
+    #      because we know this column or combination is not unique. 
+    columns_and_combinations = {}
+
+    # Initialize with a subdictionary for each single columns.
+    for col_num in range(1, len(headers)):
+        columns_and_combinations[col_num] = {}
+    # And initialize with a subdictionary for each column combination.
+    for col_list in column_combinations:
+        group_key = separator.join([str(x) for x in col_list])
+        columns_and_combinations[group_key] = {}
+
+    row_num = 0
+    for row in csv_reader:
+        # TODO: We could reduce memory footprint by storing hashes
+        # instead of actual cell values / combined cell values.
+        row_num += 1
+        row = [None,] + row # use 1-based indexing, to match columns & headers
+        cell_num = 0
+        # Handle individual columns first.
+        for cell in row[1:]:
+            cell_num += 1
+            if columns_and_combinations[cell_num] is not False:
+                if cell in columns_and_combinations[cell_num]:
+                    columns_and_combinations[cell_num] = False
+                else:
+                    columns_and_combinations[cell_num][cell] = True
+
+        # Handle combinations of columns.
+        for col_list in column_combinations:
+            group_key = separator.join([str(x) for x in col_list])
+            cell_vals = list(row[i] for i in col_list)
+            joined_cells = separator.join(cell_vals)
+            if columns_and_combinations[group_key] is not False:
+                if joined_cells in columns_and_combinations[group_key]:
+                    columns_and_combinations[group_key] = False
+                else:
+                    columns_and_combinations[group_key][joined_cells] = True
+
+    # All the information is now in 'columns_and_combinations'.
+    # Start the output phase.
+
+    single_unique_columns = [x for x in columns_and_combinations
+                             if isinstance(x, int) and columns_and_combinations[x]]
+
+    combined_unique_columns = [x for x in columns_and_combinations
+                               if isinstance(x, str) and columns_and_combinations[x]]
+
+    # Report on individually unique columns.
+    if len(single_unique_columns) == 0:
+        print("No individual columns were unique across all rows.")
+    else:
+        print("Individual columns that are unique across all rows:")
+        print("")
+        for col_num in single_unique_columns:
+            print("  %s. %s" % (col_fmt.format(col_num), headers[col_num]))
+
+    # Report on combined unique columns.
+    for combination in combined_unique_columns:
+        print("")
+        print("Unique combination: %s" % combination)
+        print("")
+        # Now watch this.
+        col_nums = [int(x) for x in combination.split(separator)]
+        for col_num in col_nums:
+            print("  %s. %s" % (col_fmt.format(col_num), headers[col_num]))
+    
+
+if __name__ == '__main__':
+    main()
