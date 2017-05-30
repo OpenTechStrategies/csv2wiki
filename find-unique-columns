@@ -214,6 +214,13 @@ def main():
                 max_lengths[cell_num] = len(row[cell_num])
             if columns_and_combinations[cell_num] is not False:
                 if cell in columns_and_combinations[cell_num]:
+                    # If you're ever surprised that a certain column
+                    # isn't unique, you can uncomment this to see
+                    # where its first collision happens.
+                    #
+                    # sys.stderr.write(
+                    #     "DEBUG: non-unique: row %d, col %d: '%s'\n"
+                    #     % (row_num, cell_num, row[cell_num]))
                     columns_and_combinations[cell_num] = False
                 else:
                     columns_and_combinations[cell_num][cell] = True
