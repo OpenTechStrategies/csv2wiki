@@ -43,29 +43,31 @@ data spreadsheet, [test-input.csv](test-input.csv) like this
 
         $ ./find-unique-columns -g 2,4,6 -g 3,4 -g 6,1 -g 2,6 -g 3,6 -g 2,3 -s "-" test-input.csv
 
-it will test every individual column, plus six specified combinations
-of columns of which three will turn out to be unique:
+the output will show all individually unique columns, the three unique
+combinations of columns (unique when the separator is included, that
+is) from among the six combinations requested, and the maximum cell
+length found across all rows for each column represented:
 
         Individual columns that are unique across all rows:
         
-          1. Identifying Number
-          5. Ridiculously Unique Random String
+          1. (max len:  4) Identifying Number
+          5. (max len:  8) Ridiculously Unique Random String
         
         Unique combination: 2-3
         
-          2. Not-Quite-Unique Name
-          3. Non-Unique Animal
+          2. (max len: 13) Not-Quite-Unique Name
+          3. (max len: 15) Non-Unique Animal
         
         Unique combination: 2-4-6
         
-          2. Not-Quite-Unique Name
-          4. Non-Unique Vegetable
-          6. Something That's The Same In Every Row
+          2. (max len: 13) Not-Quite-Unique Name
+          4. (max len: 11) Non-Unique Vegetable
+          6. (max len: 28) Something That's The Same In Every Row
         
         Unique combination: 6-1
         
-          6. Something That's The Same In Every Row
-          1. Identifying Number
+          6. (max len: 28) Something That's The Same In Every Row
+          1. (max len:  4) Identifying Number
     
 ## Related projects
 

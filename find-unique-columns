@@ -194,6 +194,12 @@ def main():
         group_key = separator.join([str(x) for x in col_list])
         columns_and_combinations[group_key] = {}
 
+    # 1-based list whose indices are column numbers and whose elements
+    # are the maximum cell length seen so far in that column.  By the
+    # end of the iteration over the CSV input, this holds the maximum
+    # length seen in any row for each column.
+    max_lengths = [0] * len(headers)
+
     row_num = 0
     for row in csv_reader:
         # TODO: We could reduce memory footprint by storing hashes
@@ -204,6 +210,8 @@ def main():
         # Handle individual columns first.
         for cell in row[1:]:
             cell_num += 1
+            if max_lengths[cell_num] < len(row[cell_num]):
+                max_lengths[cell_num] = len(row[cell_num])
             if columns_and_combinations[cell_num] is not False:
                 if cell in columns_and_combinations[cell_num]:
                     columns_and_combinations[cell_num] = False
@@ -230,6 +238,9 @@ def main():
     combined_unique_columns = sorted([x for x in columns_and_combinations
                                       if isinstance(x, str) and columns_and_combinations[x]])
 
+    # Determine padding needed to print cell lengths.
+    len_fmt = "{0: >%d}" % len(str(max(max_lengths)))
+
     # Report on individually unique columns.
     if len(single_unique_columns) == 0:
         print("No individual columns were unique across all rows.")
@@ -237,17 +248,23 @@ def main():
         print("Individual columns that are unique across all rows:")
         print("")
         for col_num in single_unique_columns:
-            print("  %s. %s" % (col_fmt.format(col_num), headers[col_num]))
+            print("  %s. (max len: %s) %s" 
+                  % (col_fmt.format(col_num), 
+                     len_fmt.format(max_lengths[col_num]), 
+                     headers[col_num]))
 
     # Report on combined unique columns.
     for combination in combined_unique_columns:
         print("")
         print("Unique combination: %s" % combination)
         print("")
-        # Now watch this.
+        # Turn the combinations back into column numbers.
         col_nums = [int(x) for x in combination.split(separator)]
         for col_num in col_nums:
-            print("  %s. %s" % (col_fmt.format(col_num), headers[col_num]))
+            print("  %s. (max len: %s) %s" 
+                  % (col_fmt.format(col_num), 
+                     len_fmt.format(max_lengths[col_num]),
+                     headers[col_num]))
     
 
 if __name__ == '__main__':

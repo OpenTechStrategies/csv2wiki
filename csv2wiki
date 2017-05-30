@@ -68,11 +68,23 @@ a sole "[default]" section and the following elements in that section:
                        *NOTE:* 
 
                        The titles generated this way must be unique.
-                       Typically, you ensure uniqueness by making sure
-                       that at least one element of title_tmpl is some
-                       kind of unique identifying number -- either a
-                       column whose value is known to be unique, or
-                       the row number.
+                       There are various ways to ensure uniqueness:
+
+                         - By making sure that at least one element of 
+                           title_tmpl comes from a column that holds
+                           some kind of unique identifying number;
+
+                         - By making sure that the combination of
+                           columns used always results in a unique
+                           title;
+
+                         - By interpolating the row number ("{0}"),
+                           which is essentially an implicit column
+                           that is guaranteed to be unique, although
+                           it has no relationship to the data.
+
+                       The 'find-unique-columns' program shipped with
+                       csv2wiki can help with the first two methods.
 
                        If the generated page titles are not unique,
                        only the last row in the set of duplicates will
