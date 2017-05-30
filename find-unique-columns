@@ -254,6 +254,8 @@ def main():
                      headers[col_num]))
 
     # Report on combined unique columns.
+    if len(combined_unique_columns) == 0:
+        print("None of the requested combinations of columns were unique.")
     for combination in combined_unique_columns:
         print("")
         print("Unique combination: %s" % combination)
