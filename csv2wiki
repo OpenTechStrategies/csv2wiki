@@ -662,6 +662,18 @@ class WikiSession:
                 # Just replace any problematic characters with "-",
                 # and hope that still results in unique page titles.
                 s = s.replace(c, "-")
+        # Did you know that MediaWiki limits page titles to 255 bytes?
+        # Not characters, but actual bytes?  And did you know that if
+        # you use the API to try to create a page with a title longer
+        # than that, the error message *won't say anything about length*, 
+        # leaving you to guess what "invalidtitle" and "Bad Title"
+        # mean, and causing you to go spelunking through the MediaWiki
+        # source code, in particular 'includes/api/ApiBase.php' and
+        # 'includes/Title.php', until you finally DuckDuckGoogle in
+        # desparation and, by some miracle, manage to stumble across
+        # https://www.mediawiki.org/wiki/Page_title_size_limitations?
+        while len(bytes(s, "UTF-8")) > 255:
+            s = s[:-1]
         return s
 
     def _format_cell(self, cell):
