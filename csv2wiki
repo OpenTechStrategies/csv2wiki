@@ -635,15 +635,34 @@ class WikiSession:
             sys.stderr.write("       ('%s')\n" % err)
             sys.exit(1)
 
-    def _wiki_escape(self, s):
+    def _wiki_escape_page_title(self, s):
         """Return a wiki-escaped version of STRING."""
-        # There was a page with a title like
-        # "Entry_72_Foo_Bar_]Baz[." and the API rejected
-        # that, so I guess we have to do some escaping.  
-        # Later some fields with "#N/A" failed (as text in a page, not
-        # as page titles).  Below we carelessly lump all of these
-        # cases together and use "-" as the go-to replacement.
-        return s.replace("]", "-").replace("[", "-").replace("#", "-").replace("/", "-")
+        # TODO: This is MediaWiki-specific right now.
+        #
+        # This was originally motivated by the API rejecting a page
+        # with a title like "Entry_72_Foo_Bar_]Baz[.".  Eventually, 
+        # we implemented the complete MediaWiki page title escaping. 
+        #
+        # Note that at least in MediaWiki, escaping page content and
+        # escaping page names are not exactly the same thing.  See
+        # https://www.mediawiki.org/wiki/Manual:PAGENAMEE_encoding
+        # for what's illegal in a page name.  That list sort of
+        # includes underscore, because underscores are treated as
+        # though they are spaces, but we're okay with that, so we
+        # don't filter out underscores below.
+        #
+        # According to a comment originally here, some fields with
+        # "#N/A" apparently failed as text in a page, not as page
+        # titles.  But the callers were only calling this on page
+        # titles, so presumably the fact that we're no longer
+        # replacing "/" below couldn't possibly result in any breakage
+        # that wasn't happning before anyway... right?
+        for c in ["#", "<", ">", "[", "]", "{", "|", "}",]:
+            if s.find(c) != -1:
+                # Just replace any problematic characters with "-",
+                # and hope that still results in unique page titles.
+                s = s.replace(c, "-")
+        return s
 
     def _format_cell(self, cell):
         """Take the html in CELL and adjust it to be mediawiki-friendly.  
@@ -717,7 +736,7 @@ class WikiSession:
 
             if cell != "":
                 if col == self._cat_col:
-                    cell_esc = self._wiki_escape(massage_string(cell))
+                    cell_esc = self._wiki_escape_page_title(massage_string(cell))
                     cell = '[[:Category:' + cell_esc + '|' + cell_esc + ']]\n'
                     cell += '[[Category:' + cell_esc + ']]'
                     if self._categories.get(cell_esc) is None:
@@ -762,7 +781,7 @@ class WikiSession:
         # The input is UTF-8, but for wiki page names we
         # want to stick to plain old lower ASCII.
         page_title = massage_string(page_title)
-        page_title = self._wiki_escape(page_title)
+        page_title = self._wiki_escape_page_title(page_title)
         
         # Wikimedia will convert &amp; to an ampersand and
         # then consider that ampersand as the start of a new
