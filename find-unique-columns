@@ -84,7 +84,8 @@ I couldn't figure out any way to test for unique column combinations
 with 'csvstat', and it was faster to write this script than to keep
 experimenting.  If you know of a way to do all of this with csvkit,
 please file an issue in github.com/OpenTechStrategies/csv2wiki/ and
-we'll deprecate this script in favor of that solution.  -kfogel """
+we'll deprecate this script in favor of that solution.  -kfogel
+"""
 
 import csv
 import re
