@@ -876,12 +876,17 @@ class WikiSession:
         def categories_sorter(key):
             """Return a descending sort value for category KEY.
             Works whether ambient cat_sort value is "size" or "alpha".
+
             If "size", then categories will still be sorted
             alphabetically within the same size.  For example,
             if five categories have size 8 (that is, each of those
             five categories in the TOC lists 8 pages), then those five
             categories will be appear in alphabetical order within
-            their group."""
+            the group of "all categories of size 8".
+
+            If "alpha", then sort strictly alphabetically, both among
+            and within categories.
+            """
             # Look, laugh if you want, but it works.
             fmt = "{:015}"
             bounce = 9999999999999
