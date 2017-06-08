@@ -284,6 +284,23 @@ since it's how the config file is indicated in the first place.
                        that's just a kind of conversion error and is
                        really an indication that the cell is empty.)
 
+  --cat-sort=SORT      How to sort categories on the TOC page.  SORT
+                       value may be "size" (the default) or "alpha".
+
+                       If "size", categories are sorted first by the
+                       number of member pages in that category (see
+                       the 'cat_col' config option), and alphabetically
+                       within each size group.  
+
+                       If "alpha", then categories are sorted strictly
+                       alphabetically, no matter what their size.
+
+                       In either case, if the 'last_cat' config option
+                       is used, that category will always be last on
+                       the TOC (assuming the category exists at all,
+                       i.e, has any member pages), no matter what the
+                       category's size or where it sits alphabetically.
+
   -q | --quiet         Be silent except for error messages.
 
   --pare N             Convert only 1/N of the CSV rows to wiki pages.
@@ -825,12 +842,17 @@ class WikiSession:
         self._save_page(page_title, page_text)
         self._maybe_msg(("CREATED PAGE: \"" + page_title + "\"\n"))
 
-    def make_pages(self, pare):
+    def make_pages(self, pare, cat_sort="size"):
         """Create a wiki page for each row in the csv.
         The csv must have at least one row of content.
+
         If PARE is not None, it is an integer indicating that only
-        1/PARE rows should be handled, and the rest skipped."""
-    
+        1/PARE rows should be handled, and the rest skipped.
+
+        CAT_SORT may be "size" (the default) or "alpha", and controls
+        how the categories on the TOC page are sorted; see the
+        documentation for the '--cat-sort' option for details.
+        """
         # read in csv
         row_num = 0
         for row in self._csv_input:
@@ -852,12 +874,29 @@ class WikiSession:
     
         # This got too big to fit into a lambda anymore :-).
         def categories_sorter(key):
-            "Return a descending sort value for category KEY."
-            if (self._last_cat is not None 
+            """Return a descending sort value for category KEY.
+            Works whether ambient cat_sort value is "size" or "alpha".
+            If "size", then categories will still be sorted
+            alphabetically within the same size.  For example,
+            if five categories have size 8 (that is, each of those
+            five categories in the TOC lists 8 pages), then those five
+            categories will be appear in alphabetical order within
+            their group."""
+            # Look, laugh if you want, but it works.
+            fmt = "{:015}"
+            bounce = 9999999999999
+            if (self._last_cat is not None
                 and key.strip().lower() == self._last_cat):
-                return 0
+                if cat_sort == "size":
+                    return fmt.format(bounce)
+                else:
+                    # This works too.  Stop laughing.
+                    return "zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz"
+            elif cat_sort == "size":
+                num = bounce - len(self._categories[key])
+                return fmt.format(num) + key.strip().lower()
             else:
-                return - len(self._categories[key])
+                return key.strip().lower()
         
         for cat in sorted(list(self._categories.keys()), key=categories_sorter):
             if num_categories > 1:
@@ -873,7 +912,7 @@ class WikiSession:
                     usable_cat = "csv2wiki Miscellaneous Default Category"
                 usable_cat = usable_cat + " (" + str(len(self._categories[cat])) + ")"
                 toc_text += "==== " + usable_cat + " ====\n\n"
-            for pnam in self._categories[cat]:
+            for pnam in sorted(self._categories[cat]):
                 toc_text += '* [[' + pnam + ']]\n'
             toc_text += "\n"
         self._save_page(self._toc_name, toc_text)
@@ -1005,6 +1044,7 @@ def main():
                                     "usage",
                                     "quiet"
                                     "null-as-value",
+                                    "cat-sort=",
                                     "pare=",
                                     "delete-matching=",
                                     "config=",
@@ -1021,6 +1061,7 @@ def main():
     msg_out = sys.stdout
     bad_opt_seen = False
     null_as_value = False
+    cat_sort = "size"
     pare = None
     show_columns = False
     for o, a in opts:
@@ -1033,6 +1074,8 @@ def main():
             msg_out = None
         elif o in ("--null-as-value",):
             null_as_value = True
+        elif o in ("--cat-sort",):
+            cat_sort = a.lower()
         elif o in ("--pare",):
             pare = int(a)
         elif o in ("--show-columns",):
@@ -1042,6 +1085,11 @@ def main():
         else:
             sys.stderr.write("ERROR: unrecognized option '%s'\n" % o)
             bad_opt_seen = True
+
+    if cat_sort != "size" and cat_sort != "alpha":
+        sys.stderr.write('ERROR: "--cat-sort" option takes "size" or "alpha"\n')
+        usage(errout=True)
+        sys.exit(2)
 
     if config is None and not show_columns:
         sys.stderr.write("ERROR: missing config file; use -c to supply it\n")
@@ -1093,7 +1141,7 @@ def main():
             usage(errout=True)
             sys.exit(2)
         try:
-            wiki_sess.make_pages(pare)
+            wiki_sess.make_pages(pare, cat_sort)
         except IndexError as err:
             sys.stderr.write("ERROR: '%s'\n" % err)
             usage(errout=True)
