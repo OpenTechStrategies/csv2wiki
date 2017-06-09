@@ -85,8 +85,10 @@ def main():
         sys.stderr.write("       ('%s')\n" % err)
         sys.exit(1)
 
-    fooo working here
-
+    # Want a command-line equivalent of this:
+    # https://macfound.opentechstrategies.com/mwiki/api.php?action=query&list=allpages
+    # ...except to get all pages, and then to be able to pare out a subset
+    # and delete them.
 
 if __name__ == '__main__':
     main()
