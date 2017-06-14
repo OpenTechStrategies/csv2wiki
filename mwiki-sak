@@ -24,7 +24,9 @@ TBD
 """
 
 import mwclient
-import getopt, sys
+import getopt
+import os
+import sys
 import configparser
 import warnings
 import requests  # for exception matching
@@ -63,10 +65,10 @@ def main():
             sys.stderr.write("ERROR: unrecognized option '%s'\n" % o)
             sys.exit(2)
 
-    wiki_url    = config.options('default')['wiki_url']
-    username    = config.options('default')['username']
-    password    = config.options('default')['password']
-    path_to_api = config.options('default')['path_to_api']
+    wiki_url    = config.get('default', 'wiki_url')
+    username    = config.get('default', 'username')
+    password    = config.get('default', 'password')
+    path_to_api = config.get('default', 'path_to_api', fallback="/")
 
     # Connect to the site.
     try:
@@ -85,10 +87,46 @@ def main():
         sys.stderr.write("       ('%s')\n" % err)
         sys.exit(1)
 
-    # Want a command-line equivalent of this:
+    # Would like a command-line equivalent of this...
+    #
     # https://macfound.opentechstrategies.com/mwiki/api.php?action=query&list=allpages
-    # ...except to get all pages, and then to be able to pare out a subset
-    # and delete them.
+    #
+    # ...except to get all pages, and then to be able to pare out a
+    # subset and delete them.
+
+    # But for now, let's get file uploads working.  
+    #
+    # What I'd like is for mwiki-sak to have an "upload" subcommand,
+    # where you pass it a file and a page title as arguments (and the
+    # usual wiki login info via -c CONFIG_FILE), and it uploads the
+    # file to the wiki and makes a link from the page, creating a new
+    # "attachments" section on the page or something like that.
+    # 
+    # The code below just tries to get one upload working via API.
+    # Currently it fails (on a .docx file) with this error:
+    #
+    # mwclient.errors.APIError: 
+    #   ('filetype-banned',
+    #    'Filetype not permitted: docx', 
+    #    'See http://localhost/mwiki/api.php for API usage')
+    #
+    # Solutions can probably be found on:
+    #
+    #   https://www.mediawiki.org/wiki/Help:Managing_files
+    #   https://www.mediawiki.org/wiki/Manual:$wgFileExtensions
+    #   https://www.mediawiki.org/wiki/Manual:Configuring_file_uploads
+    #   https://www.mediawiki.org/wiki/Manual_talk:Configuring_file_uploads
+
+    file_path = "Fill this in with the path to some file to upload"
+    page_name = "Fill this in with a wiki page name"
+    # page = site_conn.pages[page_name]
+    try:
+        site_conn.upload(open(file_path, 'rb'), 
+                         filename=os.path.basename(file_path),
+                         description='Team description for %s' % page_name)
+    except mwclient.errors.APIError as e:
+        raise Exception("ERROR: unable to upload file '%s': '%s'" % (file_path, e.info))
+
 
 if __name__ == '__main__':
     main()
