@@ -1,3 +1,10 @@
+This is a commandline script that uploads documents to wiki pages.  We
+assume you have a table of contents that lists all the pages.  You
+also have a directory with files whose filenames contain clues as to
+which page to attach to.  This script looks at the files, tags them
+and affiliates them with pages, then uploads them and links to them
+from pages.
+
 * Usage notes
 
 To use the virtualenv, do:
