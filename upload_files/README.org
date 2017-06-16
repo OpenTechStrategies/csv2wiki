@@ -1,0 +1,61 @@
+* Usage notes
+
+To use the virtualenv, do:
+
+    source .upload/bin/activate
+
+To turn it off, do:
+
+    deactivate
+
+To run it, just cd into the `upload_files` dir and do `./upload.py`
+
+* System changes log
+
+These are the changes we had to make to our wiki config and server
+config.  You might need similar ones.  Note that these changes relax
+security and safeguards.  You mnight want to retighten them after the
+upload.
+
+All these changes could be scripted.  I don't think the time
+investment is worth it right now, but we could do it if we find
+ourselves doing bulk uploads regularly.
+
+** Install dependencies
+apt-get install python3-venv
+pip install wheel
+pip install mwclient 
+** Raise maximum upload size
+
+We *could* figure out the biggest file in our upload set and script the setting
+of upload size using sed or Augeas.  Instead we're doing it manually for now.
+
+sed -i "s/^\$wgEnableUploads = false/\$wgEnableUploads = true/" /home/deploy/mediawiki-1.28.2/LocalSettings.php
+sed -i "s/^upload_max_filesize = 2M/upload_max_filesize = 58M/" /etc/php/7.0/apache2/php.ini
+sed -i "s/^post_max_size = .*/post_max_size = 58M/" /etc/php/7.0/apache2/php.ini
+systemctl reload apache2 # to make the php.ini change take effect
+
+** Add some lines to bottom of LocalSettings.php:
+
+We could script setting these in Augeas if we wanted.
+
+$wgFileExtensions = array_merge($wgFileExtensions, array('doc', 'docx', 'html', 'pdf', 'xlsx'));
+$wgFileBlacklist = array(); #array_diff( $wgFileBlacklist, array ('html') );
+$wgMimeTypeBlacklist = array(); #array_diff( $wgMimeTypeBlacklist, array ('exe') );
+$wgStrictFileExtensions = false;
+$wgTrustedMediaFormats = array('application/zip', 'text/html');
+$wgVerifyMimeType = false;
+$wgAllowJavaUploads = true;
+$wgCheckFileExtensions = false;
+
+** Add bot permissions to edit/upload:
+
+Again, we could script this too.  Note that the uploading account must be a
+'bot' account for these permission settings to work.
+
+$wgGroupPermissions['bot']['edit'] = true;
+$wgGroupPermissions['bot']['upload'] = true;
+$wgGroupPermissions['autoconfirmed']['reupload'] = true;
+
+Note that changes to php.ini require an Apache restart.  Changes to
+LocalSettings.php take effect as soon as you hit save and reload the web page.
