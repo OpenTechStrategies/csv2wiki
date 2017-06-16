@@ -1,0 +1,34 @@
+# Path to a directory of documents, some of which to upload
+docdir = "path/to/a/bunch/of/files"
+
+# This is a dict of tags that hash to a list containing a
+# human-readable string form of the tag and regex.  We'll feed the
+# filenames to the regex and if it matches, that file gets that tag.
+# The regex should use parentheses to create a group that is the id of
+# the file (it should correspond to an id for the page the file
+# corresponds to).
+tags = {'mou': ['MOU', r'^([0-9]+)__MOU__'],
+	'team': ['Team Structure', r'^([0-9]+)__Team_Structure__']
+        }
+
+# This is the table of contents page.  Each entry in the TOC should be
+# a page title that ends with (id).  We use the TOC to match up ids
+# with page title and then use the ids to match files with pages.
+toc = '100Change_TOC'
+
+# Each table of contents entry should contain a unique id for that
+# page.  Obviously the title is a unique id, but we found it
+# convenient to use numbres.  Either way, this regex should match that
+# id.
+toc_id_regex = r'\(([0-9]+)\)]]$'
+
+# A list of dicts. Each dict is a wiki to connect to and upload the
+# docs.  Each dict should have keys 'domain', 'username', 'password',
+# and 'tags'.  The tags key tells which files from the directory to
+# upload.  One could add a second item to the domains array and do
+# uploads to multiple wikis.
+domains = [{'domain':'testwiki.opentechstrategies.com',
+    'username':'csv2wiki',
+    'password':'setecastronomy',
+    'tags':['mou','team']}] # tags to upload
+
