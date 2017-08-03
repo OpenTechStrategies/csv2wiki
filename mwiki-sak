@@ -20,7 +20,21 @@
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 __doc__ = """\
-TBD
+mwiki-sak: the MediaWiki Swiss Army Knife (command-line access to MediaWiki)
+
+Usage: mwiki-sak -c CONFIG_FILE [OPTIONS] SUBCOMMAND [ARGUMENTS]
+
+CONFIG_FILE has the same format as cvs2wiki's config file, but only
+the wiki credentials fields are used.
+
+Subcommands:
+
+  list:                                 List all pages in the wiki
+  delete -f infile | PAGE1 [PAGE2...]:  Delete specified pages
+
+Options:
+
+  -f FILE | --infile FILE:              Read args from FILE, one per line
 """
 
 import mwclient
@@ -40,14 +54,15 @@ def usage(errout=False):
 
 
 def main():
-    """TBD"""
     config = None
+    infile = None
 
     try:
         opts, args = getopt.getopt(sys.argv[1:], 
-                                   'h?c:',
+                                   'h?c:f:',
                                    ["help",
                                     "usage",
+                                    "infile=",
                                     "config=",])
     except getopt.GetoptError as err:
         sys.stderr.write("ERROR: '%s'\n" % err)
@@ -58,6 +73,8 @@ def main():
         if o in ("-h", "-?", "--help", "--usage",):
             usage()
             sys.exit(0)
+        elif o in ("-f", "--infile",):
+            infile = a
         elif o in ("-c", "--config",):
             config = configparser.ConfigParser()
             config.read(a)
@@ -87,45 +104,59 @@ def main():
         sys.stderr.write("       ('%s')\n" % err)
         sys.exit(1)
 
-    # Would like a command-line equivalent of this...
-    #
-    # https://macfound.opentechstrategies.com/mwiki/api.php?action=query&list=allpages
-    #
-    # ...except to get all pages, and then to be able to pare out a
-    # subset and delete them.
-
-    # But for now, let's get file uploads working.  
-    #
-    # What I'd like is for mwiki-sak to have an "upload" subcommand,
-    # where you pass it a file and a page title as arguments (and the
-    # usual wiki login info via -c CONFIG_FILE), and it uploads the
-    # file to the wiki and makes a link from the page, creating a new
-    # "attachments" section on the page or something like that.
-    # 
-    # The code below just tries to get one upload working via API.
-    # Currently it fails (on a .docx file) with this error:
-    #
-    # mwclient.errors.APIError: 
-    #   ('filetype-banned',
-    #    'Filetype not permitted: docx', 
-    #    'See http://localhost/mwiki/api.php for API usage')
-    #
-    # Solutions can probably be found on:
-    #
-    #   https://www.mediawiki.org/wiki/Help:Managing_files
-    #   https://www.mediawiki.org/wiki/Manual:$wgFileExtensions
-    #   https://www.mediawiki.org/wiki/Manual:Configuring_file_uploads
-    #   https://www.mediawiki.org/wiki/Manual_talk:Configuring_file_uploads
-
-    file_path = "Fill this in with the path to some file to upload"
-    page_name = "Fill this in with a wiki page name"
-    # page = site_conn.pages[page_name]
-    try:
-        site_conn.upload(open(file_path, 'rb'), 
-                         filename=os.path.basename(file_path),
-                         description='Team description for %s' % page_name)
-    except mwclient.errors.APIError as e:
-        raise Exception("ERROR: unable to upload file '%s': '%s'" % (file_path, e.info))
+    # Subcommand dispatch.
+    if len(args) < 1:
+        sys.stderr.write("ERROR: subcommand argument required.\n")
+        usage(True)
+        sys.exit(1)
+    elif args[0].lower() == "help":
+        usage()
+    elif args[0].lower() == "list":
+        # This is basically the command-line equivalent of
+        # wiki.example.com/api.php?action=query&list=allpages
+        #
+        # Except we're going to print them out in sorted order,
+        # because a common use case is to get a list of pages, delete
+        # some of them, and then get a list again to make sure that
+        # exactly the ones requested to be deleted were deleted.  To
+        # do that comparison, it helps to have the list sorted.  The
+        # same logic probably applies to other uses of page lists.
+        page_names = []
+        for page in site_conn.pages:
+            page_names.append(page.name)
+        page_names.sort()
+        for page_name in page_names:
+            print("%s" % page_name)
+    elif args[0].lower() == "delete":
+        if len(args) == 1 and infile is None:
+            sys.stderr.write(
+                "ERROR: 'delete' requires arguments or the --infile option\n")
+            sys.exit(1)
+        if len(args) > 1 and infile is not None:
+            sys.stderr.write(
+                "ERROR: cannot combine command-line arguments with --infile\n")
+            sys.exit(1)
+        if len(args) > 1:
+            for page_name in args[1:]:
+                page = site_conn.pages[page_name]
+                try:
+                    page.delete()
+                except mwclient.errors.APIError as e:
+                    raise Exception(
+                        "ERROR: unable to delete page '%s'" % e.info)
+        else:
+            with open(infile) as infile_fp:
+                for line in infile_fp:
+                    page = site_conn.pages[line.rstrip('\n')]
+                    try:
+                        page.delete()
+                        # Deleting the page in the wiki doesn't delete
+                        # the page object here, so page.name can still
+                        # be dereferenced.
+                        print("DELETED PAGE '%s'" % page.name)
+                    except mwclient.errors.APIError as e:
+                        raise Exception(
+                            "ERROR: unable to delete page: '%s'" % e.info)
 
 
 if __name__ == '__main__':
