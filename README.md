@@ -40,7 +40,7 @@ Accompanying csv2wiki are two helper programs:
            $ python3 ./find-unique-columns --help
 
    to see usage.  For example, if you can run it on the accompanying test
-   data spreadsheet, [test-input.csv](test-input.csv) like this
+   data spreadsheet, [test-input.csv](test-input.csv), like this
 
            $ ./find-unique-columns -g 2,4,6 -g 3,4 -g 6,1 -g 2,6 -g 3,6 -g 2,3 -s "-" test-input.csv
 
