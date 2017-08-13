@@ -142,8 +142,9 @@ def main():
                 try:
                     page.delete()
                 except mwclient.errors.APIError as e:
-                    raise Exception(
-                        "ERROR: unable to delete page '%s'" % e.info)
+                    sys.stderr.write(
+                        "ERROR: unable to delete page '%s':\n       %s\n"
+                        % (page_name, e.info))
         else:
             with open(infile) as infile_fp:
                 for line in infile_fp:
