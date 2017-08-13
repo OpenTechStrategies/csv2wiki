@@ -24,11 +24,10 @@ Convert each row of a UTF-8 CSV file to a MediaWiki page.
 
 Basic usage:
 
-  $ csv2wiki -c CONFIG_FILE [OPTIONS] (CSV_FILE | --delete-matching=PATTERN)
+  $ csv2wiki -c CONFIG_FILE [OPTIONS] CSV_FILE
 
 The common case is to pass a CSV_FILE on the command line; wiki pages
-will then be created (or updated) based on the CSV contents.  (For the
-less common page-deletion case, see section "Page deletion support".)
+will then be created (or updated) based on the CSV contents.
 
 This script expects the cells in CSV_FILE to contain HTML snippets.
 The cells need not be valid HTML documents, but they should be
@@ -42,8 +41,6 @@ a sole "[default]" section and the following elements in that section:
                        "https://www.example.com/mwiki", etc.
 
   username:            User account with write/create permission in the wiki.
-                       (If the --delete-matching option is passed, then
-                       this user must have page-delete permission.)
 
   password:            The wiki password corresponding to the username.
 
@@ -319,27 +316,7 @@ since it's how the config file is indicated in the first place.
                        option, since it just prints information and
                        exits, without creating any wiki pages.
 
-  --delete-matching    See "Page deletion support" section below.
-
   -h | --help          Show usage message and exit without error.
-
-Page deletion support
----------------------
-
-This script also supports batch deletion of pages, since a possible
-outcome of running this is that you end up with pages in your wiki
-that you don't want.  Use the "--delete-matching PATTERN" option to
-remove them.  All pages whose names match PATTERN will be deleted (and
-no pages will be created).
-
-Typically, PATTERN will be similar to the title_tmpl config element,
-since --delete-matching is most often used to delete pages originally
-created with this script.
-
-PATTERN seems to work best as a single-word component of a wiki page
-title.  For example, in a wiki that had a bunch of pages with names
-like "Fish_238_Food_For_Frogs", "Fish_239_Food_For_Frogs", etc, using
-"Fish_.*" and even "Fish_" for PATTERN failed, whereas "Fish" succeeded.
 
 Dependencies and Troubleshooting
 --------------------------------
@@ -400,11 +377,11 @@ Dependencies and Troubleshooting
     $wgAllowImageTag = true;
 
 
-* If you run create/delete multiple times, you may need to run
+* Creating/deleting pages in a wiki multiple times may require running
   
     $ php maintenance/rebuildall.php
   
-  in your MediaWiki instance to link pages to their categories
+  in your MediaWiki instance, to link pages to their categories 
   properly.  That script took about 10 minutes to run for a wiki with
   <300 pages, so be prepared to wait.  Also, as of early 2017 on
   Debian GNU/Linux, one of the authors had to run 'sudo apt-get
@@ -539,22 +516,19 @@ class WikiSession:
     """One session loading a CSV file into a wiki."""
     # This is MediaWiki-specific right now.  We could conditionalize
     # based on a new config parameter 'wiki_type'.  At least the
-    # _do_skel(), _make_page(), _save_page(), and delete_page() methods
-    # would need to be updated.
+    # _do_skel(), _make_page(), _save_page(), and methods would
+    # need to be updated.
     def __init__(self, config, csv_input, null_as_value, msg_out):
         """Start a wiki session, taking login parameters from CONFIG and
         column header information (if needed) from CSV_INPUT.
-
-        If CSV_INPUT is None, then this WikiSession is just for
-        deleting wiki pages.
 
         If NULL_AS_VALUE, then when a CSV cell's entire content is
         (case-insensitively) the word "null", treat the cell as having
         that literal content, instead of treating the cell as empty.
 
         If MSG_OUT is not None, it is an output file, and progress
-        messages will be written to it regarding page creation and
-        deletion, TOC creation, and category creation."""
+        messages will be written to it regarding page creation, 
+        TOC creation, and category creation."""
         self._csv_input          = csv_input
         self._null_as_value      = null_as_value
         self._msg_out            = msg_out
@@ -739,14 +713,6 @@ class WikiSession:
         except mwclient.errors.APIError as e:
             raise Exception("ERROR: unable to write page: '%s'" % e.info)
 
-    def delete_page(self, page_title):
-        """Delete page PAGE_TITLE from this wiki."""
-        page = self._site_conn.pages[page_title]
-        try:
-            page.delete()
-        except mwclient.errors.APIError as e:
-            raise Exception("ERROR: unable to delete page: '%s'" % e.info)
-
     def _do_skel(self, skel, page_title, row, row_num):
         """Return the text for a given part of a wiki page.
         SKEL is a WikiSectionSkel.
@@ -929,14 +895,6 @@ class WikiSession:
                 self._save_page('Category:' + category, "")
                 self._maybe_msg(("CREATED CATEGORY: \"" + category + "\"\n"))
     
-    def delete_pages(self, pat):
-        """Delete wiki pages whose names match pattern PAT."""
-        # Could change what="title" to what="text" to get full-text
-        # matching on page contents.  We might want to offer that option.
-        search_results = self._site_conn.search(pat, what="title")
-        for result in search_results:
-            self.delete_page(result['title'])
-            self._maybe_msg(("DELETED PAGE: \"" + result['title'] + "\"\n"))
 
 class CSVInput():
     """Iterator class encapsulating a CSV file as input."""
@@ -1037,11 +995,7 @@ def parse_config_file(config_file):
 
 
 def main():
-    """
-    By default, creates wiki pages from a supplied CSV.  Optionally,
-    deletes those pages instead.
-
-    """
+    """Create wiki pages from a supplied CSV."""
     try:
         opts, args = getopt.getopt(sys.argv[1:], 
                                    'h?qd:c:',
@@ -1051,7 +1005,6 @@ def main():
                                     "null-as-value",
                                     "cat-sort=",
                                     "pare=",
-                                    "delete-matching=",
                                     "config=",
                                     "show-columns"])
     except getopt.GetoptError as err:
@@ -1062,7 +1015,6 @@ def main():
     csv_in = None
     config = None
     wiki_sess = None
-    delete_matching = None
     msg_out = sys.stdout
     bad_opt_seen = False
     null_as_value = False
@@ -1073,8 +1025,6 @@ def main():
         if o in ("-h", "-?", "--help", "--usage",):
             usage()
             sys.exit(0)
-        elif o in ("-d", "--delete-matching",):
-            delete_matching = a
         elif o in ("-q", "--quiet",):
             msg_out = None
         elif o in ("--null-as-value",):
@@ -1101,7 +1051,7 @@ def main():
         usage(errout=True)
         sys.exit(2)
 
-    if show_columns and (config or pare or delete_matching):
+    if show_columns and (config or pare):
         sys.stderr.write("ERROR: --show-columns precludes any other options\n")
         usage(errout=True)
         sys.exit(2)
@@ -1109,15 +1059,14 @@ def main():
     if bad_opt_seen:
         sys.exit(2)
 
-    if not delete_matching:
-        if len(args) < 1:
-            sys.stderr.write("ERROR: missing CSV_FILE argument\n")
-            sys.exit(2)
-        elif len(args) > 1:
-            sys.stderr.write("ERROR: too many arguments; "
-                             "expected only CSV_FILE\n")
-            sys.exit(2)
-        csv_in = CSVInput(args[0], config)
+    if len(args) < 1:
+        sys.stderr.write("ERROR: missing CSV_FILE argument\n")
+        sys.exit(2)
+    elif len(args) > 1:
+        sys.stderr.write("ERROR: too many arguments; "
+                         "expected only CSV_FILE\n")
+        sys.exit(2)
+    csv_in = CSVInput(args[0], config)
 
     if show_columns:
         csv_in.show_columns(sys.stdout)
@@ -1125,32 +1074,20 @@ def main():
 
     wiki_sess = WikiSession(config, csv_in, null_as_value, msg_out)
 
-    if delete_matching is not None:
-        if len(args) > 0:
-            sys.stderr.write("ERROR: too many arguments for --delete-matching\n")
-            usage(errout=True)
-            sys.exit(2)
-        try:
-            wiki_sess.delete_pages(delete_matching)
-        except IndexError as err:
-            sys.stderr.write("ERROR: '%s'\n" % err)
-            usage(errout=True)
-            sys.exit(1)
-    else:
-        if len(args) < 1:
-            sys.stderr.write("ERROR: missing CSV file argument\n")
-            usage(errout=True)
-            sys.exit(2)
-        elif len(args) > 1:
-            sys.stderr.write("ERROR: too many arguments\n")
-            usage(errout=True)
-            sys.exit(2)
-        try:
-            wiki_sess.make_pages(pare, cat_sort)
-        except IndexError as err:
-            sys.stderr.write("ERROR: '%s'\n" % err)
-            usage(errout=True)
-            sys.exit(1)
+    if len(args) < 1:
+        sys.stderr.write("ERROR: missing CSV file argument\n")
+        usage(errout=True)
+        sys.exit(2)
+    elif len(args) > 1:
+        sys.stderr.write("ERROR: too many arguments\n")
+        usage(errout=True)
+        sys.exit(2)
+    try:
+        wiki_sess.make_pages(pare, cat_sort)
+    except IndexError as err:
+        sys.stderr.write("ERROR: '%s'\n" % err)
+        usage(errout=True)
+        sys.exit(1)
 
 
 if __name__ == '__main__':
