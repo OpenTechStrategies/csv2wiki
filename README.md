@@ -31,44 +31,54 @@ Public License version 3](LICENSE.md).
 
 ## Helper programs
 
-Accompanying csv2wiki is a helper program,
-[find-unique-columns](find-unique-columns), to help you quickly figure
-out which columns (or combinations of columns) offer unique values
-across all rows in the spreadsheet.  Run
+Accompanying csv2wiki are two helper programs:
 
-        $ python3 ./find-unique-columns --help
+1. [find-unique-columns](find-unique-columns) helps you quickly figure
+   out which columns (or combinations of columns) offer unique values
+   across all rows in the spreadsheet.  Run
 
-to see usage.  For example, if you can run it on the accompanying test
-data spreadsheet, [test-input.csv](test-input.csv) like this
+           $ python3 ./find-unique-columns --help
 
-        $ ./find-unique-columns -g 2,4,6 -g 3,4 -g 6,1 -g 2,6 -g 3,6 -g 2,3 -s "-" test-input.csv
+   to see usage.  For example, if you can run it on the accompanying test
+   data spreadsheet, [test-input.csv](test-input.csv) like this
 
-the output will show all individually unique columns, the three unique
-combinations of columns (unique when the separator is included, that
-is) from among the six combinations requested, and the maximum cell
-length found across all rows for each column represented:
+           $ ./find-unique-columns -g 2,4,6 -g 3,4 -g 6,1 -g 2,6 -g 3,6 -g 2,3 -s "-" test-input.csv
 
-        Individual columns that are unique across all rows:
-        
-          1. (max len:  4) Identifying Number
-          5. (max len:  8) Ridiculously Unique Random String
-        
-        Unique combination: 2-3
-        
-          2. (max len: 13) Not-Quite-Unique Name
-          3. (max len: 15) Non-Unique Animal
-        
-        Unique combination: 2-4-6
-        
-          2. (max len: 13) Not-Quite-Unique Name
-          4. (max len: 11) Non-Unique Vegetable
-          6. (max len: 28) Something That's The Same In Every Row
-        
-        Unique combination: 6-1
-        
-          6. (max len: 28) Something That's The Same In Every Row
-          1. (max len:  4) Identifying Number
+   the output will show all individually unique columns, the three unique
+   combinations of columns (unique when the separator is included, that
+   is) from among the six combinations requested, and the maximum cell
+   length found across all rows for each column represented:
+
+           Individual columns that are unique across all rows:
+           
+             1. (max len:  4) Identifying Number
+             5. (max len:  8) Ridiculously Unique Random String
+           
+           Unique combination: 2-3
+           
+             2. (max len: 13) Not-Quite-Unique Name
+             3. (max len: 15) Non-Unique Animal
+           
+           Unique combination: 2-4-6
+           
+             2. (max len: 13) Not-Quite-Unique Name
+             4. (max len: 11) Non-Unique Vegetable
+             6. (max len: 28) Something That's The Same In Every Row
+           
+           Unique combination: 6-1
+           
+             6. (max len: 28) Something That's The Same In Every Row
+             1. (max len:  4) Identifying Number
     
+2. [mwiki-sak](mwiki-sak) The "MediaWiki Swiss Army Knife".  This
+   offers command-line-based programmatic access to MediaWiki (using
+   the MediaWiki API).  As of this writing, it offers the ability to
+   list all pages in the wiki and to delete pages by name.  Run
+
+           $ python3 ./mwiki-sak --help
+
+   for more information.
+
 ## Related projects
 
 If you like this, you might also like [csvkit](http://csvkit.rtfd.org/).
