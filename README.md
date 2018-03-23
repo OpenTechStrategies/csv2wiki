@@ -82,3 +82,5 @@ Accompanying csv2wiki are two helper programs:
 ## Related projects
 
 If you like this, you might also like [csvkit](http://csvkit.rtfd.org/).
+
+For quick exploration of a CSV file, try [csv-scope](https://github.com/OpenTechStrategies/ots-tools/blob/master/csv-scope).
