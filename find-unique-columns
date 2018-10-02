@@ -73,10 +73,8 @@ It is an error to ask about only one column as a combination.  Since
 any single unique column would be reported in the first part of the
 output, it's only meaningful to ask about combinations of two or more.
 
-Note:
-
-The 'csvstat' program in csvkit (see http://csvkit.rtfd.org/ and
-https://github.com/wireservice/csvkit) can be used to find
+(Note: The 'csvstat' program in csvkit -- see http://csvkit.rtfd.org/
+and https://github.com/wireservice/csvkit -- can be used to find
 single-column unique values, in a somewhat cumbersome way: you have to
 look at the "Unique values:" field in the output section for each
 column, and compare those values with the "Row count" at the end.  But
@@ -84,7 +82,7 @@ I couldn't figure out any way to test for unique column combinations
 with 'csvstat', and it was faster to write this script than to keep
 experimenting.  If you know of a way to do all of this with csvkit,
 please file an issue in github.com/OpenTechStrategies/csv2wiki/ and
-we'll deprecate this script in favor of that solution.  -kfogel
+we'll deprecate this script in favor of that solution.)
 """
 
 import csv
