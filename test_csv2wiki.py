@@ -1,12 +1,29 @@
 #!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+#
+# Tests for csv2wiki.
+#
+# Copyright (C) 2017, 2018 Open Tech Strategies, LLC
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU Affero General Public License as published
+# by the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+# GNU Affero General Public License for more details.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+__doc__ = """These tests check that csv2wiki is putting the right things 
+in the mediawiki instance.  If mediawiki isn't up, these tests will fail.
+"""
 
 config_fname = "../csv2wiki-config"
-sanitized_fname = "../sanitized-100andchangeExport-all-judges.csv"
-
-"""These tests check that csv2wiki is putting the right things in the
-mediawiki instance.  If mediawiki isn't up, these tests will fail.
-
-"""
+sanitized_fname = ".../path/to/original_input.csv"
 
 import os
 import re
