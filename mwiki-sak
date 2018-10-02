@@ -35,6 +35,9 @@ Subcommands:
 Options:
 
   -f FILE | --infile FILE:              Read args from FILE, one per line
+
+mwiki-sak is free / open source software under the AGPL-3.0 license.
+Please run with --version option for details.
 """
 
 import mwclient
@@ -53,14 +56,37 @@ def usage(errout=False):
     out.write(__doc__)
 
 
+def version(errout=False):
+    """Print a message explaining how to use this script.
+    Print to stdout, unless ERROUT, in which case print to stderr."""
+    out = sys.stderr if errout else sys.stdout
+    out.write("""mwiki-sak version 1.0.0.
+    
+    Copyright (C) 2017, 2018 Open Tech Strategies, LLC
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU Affero General Public License as published
+    by the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU Affero General Public License for more details.
+
+    You should have received a copy of the GNU Affero General Public License
+    along with this program.  If not, see <http://www.gnu.org/licenses/>.\n""")
+    
+
 def main():
     config = None
     infile = None
 
     try:
         opts, args = getopt.getopt(sys.argv[1:], 
-                                   'h?c:f:',
+                                   'hv?c:f:',
                                    ["help",
+                                    "version",
                                     "usage",
                                     "infile=",
                                     "config=",])
@@ -72,6 +98,9 @@ def main():
     for o, a in opts:
         if o in ("-h", "-?", "--help", "--usage",):
             usage()
+            sys.exit(0)
+        elif o in ("-v", "--version",):
+            version()
             sys.exit(0)
         elif o in ("-f", "--infile",):
             infile = a

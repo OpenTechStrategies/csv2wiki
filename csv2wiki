@@ -425,6 +425,9 @@ Dependencies and Troubleshooting
   
   That will let you save a page containing any URL.  (Things work
   similarly on the Email-whitelist page).
+
+csv2wiki is free / open source software under the AGPL-3.0 license.
+Please run with --version option for details.
 """
 
 import csv
@@ -968,6 +971,28 @@ def usage(errout=False):
     out = sys.stderr if errout else sys.stdout
     out.write(__doc__)
 
+def version(errout=False):
+    """Print a message explaining how to use this script.
+    Print to stdout, unless ERROUT, in which case print to stderr."""
+    out = sys.stderr if errout else sys.stdout
+    out.write("""csv2wiki version 1.0.0.
+    
+    Copyright (C) 2017, 2018 Open Tech Strategies, LLC
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU Affero General Public License as published
+    by the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU Affero General Public License for more details.
+
+    You should have received a copy of the GNU Affero General Public License
+    along with this program.  If not, see <http://www.gnu.org/licenses/>.\n""")
+
+
 def parse_config_file(config_file):
     """Return a dictionary mapping fields in CONFIG_FILE to their values."""
     # Return a newly-created dictionary, rather than the ConfigParser
@@ -998,8 +1023,9 @@ def main():
     """Create wiki pages from a supplied CSV."""
     try:
         opts, args = getopt.getopt(sys.argv[1:], 
-                                   'h?qd:c:',
+                                   'hv?qd:c:',
                                    ["help",
+                                    "version",
                                     "usage",
                                     "quiet"
                                     "null-as-value",
@@ -1024,6 +1050,9 @@ def main():
     for o, a in opts:
         if o in ("-h", "-?", "--help", "--usage",):
             usage()
+            sys.exit(0)
+        elif o in ("-v", "--version",):
+            version()
             sys.exit(0)
         elif o in ("-q", "--quiet",):
             msg_out = None
