@@ -84,3 +84,5 @@ Accompanying csv2wiki are two helper programs:
 If you like this, you might also like [csvkit](http://csvkit.rtfd.org/) and/or [xsv](https://github.com/BurntSushi/xsv).
 
 For quick exploration of a CSV file, try [csv-scope](https://github.com/OpenTechStrategies/ots-tools/blob/master/csv-scope).
+
+To turn a CSV file into an SQL database, try [csvs-to-sqlite](https://github.com/simonw/csvs-to-sqlite).
