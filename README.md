@@ -3,8 +3,9 @@
 [csv2wiki](csv2wiki): An open source script to convert rows in a CSV file to pages in a wiki.
 
 csv2wiki requires Python 3.  So far, only
-[MediaWiki](https://mediawiki.org/) is supported, but it would not be
-hard to extend it to support other wiki APIs.  Basic usage: 
+[MediaWiki](https://mediawiki.org/), version 1.28.2 or later, is supported,
+but it would not be hard to extend it to support other wiki APIs.  Basic
+usage:
 
         $ csv2wiki -c CONFIG [OPTIONS] CSV
 
