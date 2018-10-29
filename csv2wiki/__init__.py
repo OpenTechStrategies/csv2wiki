@@ -915,7 +915,7 @@ class CSVInput():
         
         return row_count
     
-    def __init__(self, csv_file, config):
+    def __init__(self, csv_input, config):
         """Prepare CSV_FILE for input, with delimiters from CONFIG.
         CONFIG is a dict returned from parse_config_file(), or else
         it is None, in which case default config values are used."""
@@ -924,7 +924,11 @@ class CSVInput():
         self.row_count           = None  # will be num rows not counting header
         
         self._config = config or {}
-        self._csv_fh = open(csv_file)
+        try:
+            self._csv_fh = open(csv_input)
+        except TypeError:
+            # EAFP for when a stream is coming in rather than a filename
+            self._csv_fh = csv_input
         self._csv_reader = csv.reader(self._csv_fh,
                             delimiter=self._config.get('delimiter', ','),
                             quotechar=self._config.get('quotechar', '"'))       
