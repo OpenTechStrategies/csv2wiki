@@ -992,13 +992,24 @@ def version(errout=False):
     You should have received a copy of the GNU Affero General Public License
     along with this program.  If not, see <http://www.gnu.org/licenses/>.\n""")
 
-
-def parse_config_file(config_file):
-    """Return a dictionary mapping fields in CONFIG_FILE to their values."""
+def config_parser_to_dict(config_parser):
+    """Return a dictionary mapping fields provided by CONFIG_PARSER to their values."""
     # Return a newly-created dictionary, rather than the ConfigParser
     # object itself, because we want to avoid callers having to pass
     # the 'default' section name every time they access a field.
     config = {}
+    for option in config_parser.options('default'):
+        config[option] = config_parser.get('default', option)
+    return config
+
+def parse_config_string(config_string):
+    """Return a dictionary mapping fields in string CONFIG_STRING to their values."""
+    config_parser = configparser.ConfigParser()
+    config_parser.read_string(config_string)
+    return config_parser_to_dict(config_parser)
+
+def parse_config_file(config_file):
+    """Return a dictionary mapping fields in CONFIG_FILE to their values."""
     config_parser = configparser.ConfigParser()
     parsed_files = config_parser.read(config_file)
     # ConfigParser.read() returns the number of files read, and if
@@ -1014,9 +1025,7 @@ def parse_config_file(config_file):
     elif parsed_files[0] != config_file:
         raise IOError("parsed unexpected config file instead of '%s'" % config_file)
     # We have successfully read the config file, so parse it.
-    for option in config_parser.options('default'):
-        config[option] = config_parser.get('default', option)
-    return config
+    return config_parser_to_dict(config_parser)
 
 
 def main():
