@@ -24,7 +24,7 @@ Convert each row of a UTF-8 CSV file to a MediaWiki page.
 
 Basic usage:
 
-  $ csv2wiki -c CONFIG_FILE [OPTIONS] CSV_FILE
+  $ python3 -m csv2wiki -c CONFIG_FILE [OPTIONS] CSV_FILE
 
 The common case is to pass a CSV_FILE on the command line; wiki pages
 will then be created (or updated) based on the CSV contents.
@@ -1130,7 +1130,3 @@ def main():
         sys.stderr.write("ERROR: '%s'\n" % err)
         usage(errout=True)
         sys.exit(1)
-
-
-if __name__ == '__main__':
-    main()
