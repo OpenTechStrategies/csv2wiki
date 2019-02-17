@@ -5,11 +5,19 @@
 csv2wiki requires Python 3.  So far, only
 [MediaWiki](https://mediawiki.org/), version 1.28.2 or later, is supported,
 but it would not be hard to extend it to support other wiki APIs.  Basic
-usage:
+usage from current directory:
 
-        $ csv2wiki -c CONFIG [OPTIONS] CSV
+        $ python3 -m csv2wiki -c CONFIG [OPTIONS] CSV
 
-Run `python3 ./csv2wiki --help` to see complete usage.  Summary:
+or after installing as a package
+
+        $ pip install -e .
+
+or from a different directory using PYTHONPATH
+
+        $ PYTHONPATH=<install_dir> python3 -m csv2wiki <ARGS>
+
+Run `python3 -m csv2wiki --help` to see complete usage.  Summary:
 
 You create a config file that is specific to the particular CSV and
 destination wiki.  The config file contains various parameters about

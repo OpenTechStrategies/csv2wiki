@@ -24,7 +24,7 @@ Convert each row of a UTF-8 CSV file to a MediaWiki page.
 
 Basic usage:
 
-  $ csv2wiki -c CONFIG_FILE [OPTIONS] CSV_FILE
+  $ python3 -m csv2wiki -c CONFIG_FILE [OPTIONS] CSV_FILE
 
 The common case is to pass a CSV_FILE on the command line; wiki pages
 will then be created (or updated) based on the CSV contents.
@@ -915,7 +915,7 @@ class CSVInput():
         
         return row_count
     
-    def __init__(self, csv_file, config):
+    def __init__(self, csv_input, config):
         """Prepare CSV_FILE for input, with delimiters from CONFIG.
         CONFIG is a dict returned from parse_config_file(), or else
         it is None, in which case default config values are used."""
@@ -924,7 +924,11 @@ class CSVInput():
         self.row_count           = None  # will be num rows not counting header
         
         self._config = config or {}
-        self._csv_fh = open(csv_file)
+        try:
+            self._csv_fh = open(csv_input)
+        except TypeError:
+            # EAFP for when a stream is coming in rather than a filename
+            self._csv_fh = csv_input
         self._csv_reader = csv.reader(self._csv_fh,
                             delimiter=self._config.get('delimiter', ','),
                             quotechar=self._config.get('quotechar', '"'))       
@@ -992,13 +996,24 @@ def version(errout=False):
     You should have received a copy of the GNU Affero General Public License
     along with this program.  If not, see <http://www.gnu.org/licenses/>.\n""")
 
-
-def parse_config_file(config_file):
-    """Return a dictionary mapping fields in CONFIG_FILE to their values."""
+def config_parser_to_dict(config_parser):
+    """Return a dictionary mapping fields provided by CONFIG_PARSER to their values."""
     # Return a newly-created dictionary, rather than the ConfigParser
     # object itself, because we want to avoid callers having to pass
     # the 'default' section name every time they access a field.
     config = {}
+    for option in config_parser.options('default'):
+        config[option] = config_parser.get('default', option)
+    return config
+
+def parse_config_string(config_string):
+    """Return a dictionary mapping fields in string CONFIG_STRING to their values."""
+    config_parser = configparser.ConfigParser()
+    config_parser.read_string(config_string)
+    return config_parser_to_dict(config_parser)
+
+def parse_config_file(config_file):
+    """Return a dictionary mapping fields in CONFIG_FILE to their values."""
     config_parser = configparser.ConfigParser()
     parsed_files = config_parser.read(config_file)
     # ConfigParser.read() returns the number of files read, and if
@@ -1014,9 +1029,7 @@ def parse_config_file(config_file):
     elif parsed_files[0] != config_file:
         raise IOError("parsed unexpected config file instead of '%s'" % config_file)
     # We have successfully read the config file, so parse it.
-    for option in config_parser.options('default'):
-        config[option] = config_parser.get('default', option)
-    return config
+    return config_parser_to_dict(config_parser)
 
 
 def main():
@@ -1117,7 +1130,3 @@ def main():
         sys.stderr.write("ERROR: '%s'\n" % err)
         usage(errout=True)
         sys.exit(1)
-
-
-if __name__ == '__main__':
-    main()
