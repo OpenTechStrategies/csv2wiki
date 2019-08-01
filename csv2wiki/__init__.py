@@ -321,36 +321,9 @@ since it's how the config file is indicated in the first place.
 Dependencies and Troubleshooting
 --------------------------------
 
-* This requires the 'bs4', 'mwclient', 'unidecode' Python libraries
-
-  If you get an error that looks something like this:
-
-    Traceback (most recent call last):
-      File "./csv2wiki", line 332, in <module>
-        from bs4 import BeautifulSoup
-    ImportError: No module named 'bs4'
-
-  or this:
-
-    Traceback (most recent call last):
-      File "./csv2wiki", line 27, in <module>
-        from mwclient import Site
-    ImportError: No module named mwclient
-
-  or this:
-
-    Traceback (most recent call last):
-      File "./csv2wiki", line 27, in <module>
-        from unidecode import unidecode
-    ImportError: No module named unidecode
-
-  then run these commands
-
-    $ sudo pip3 install bs4
-    $ sudo pip3 install mwclient
-    $ sudo pip3 install unidecode
-
-  and try again.
+* This requires the 'bs4', 'mwclient', and 'unidecode' non-core Python
+  modules.  If any of them are not present, you should get an error 
+  message explaining what to do.
 
 * You may need to convert carriage returns to linefeeds
 
@@ -431,16 +404,37 @@ Please run with --version option for details.
 """
 
 import csv
-import mwclient
-import unidecode
 import getopt, sys
 import configparser
 import re
 import warnings
-from bs4 import BeautifulSoup
 
 # For exception matching.
 import requests
+
+# Handle non-core modules specially.
+non_core_import_failures = []
+try:
+    import mwclient
+except ImportError:
+    non_core_import_failures.append("mwclient")
+try:
+    import unidecode
+except ImportError:
+    non_core_import_failures.append("unidecode")
+try:
+    from bs4 import BeautifulSoup
+except ImportError:
+    non_core_import_failures.append("bs4")
+if len(non_core_import_failures) > 0:
+    sys.stderr.write(
+        "ERROR: One or more modules were not available for import.\n")
+    sys.stderr.write(
+        "       You need to install them by doing something like this:\n")
+    sys.stderr.write("\n")
+    for mod in non_core_import_failures:
+        sys.stderr.write("         $ sudo pip3 install %s\n" % mod)
+    sys.exit(1)
 
 # TODO: This function should no longer be necessary.  csv2wiki now
 # only supports UTF-8 input, which Python is well-equipped to handle.
