@@ -29,9 +29,17 @@ CSV should be included, a template for naming the resultant wiki
 pages, etc.  Then you run the script at the command line, passing the
 config file with the -c option and the CSV file as an argument.
 
-A sample of csv2wiki in action (including a
-[sample config file](https://github.com/OpenTechStrategies/MacFound/blob/master/macfound-internal-csv2wiki-config.tmpl))
-can be found in the
+The main thing to pay attention to is the `sec_map` field in the
+config file.  That field's value is essentially a small
+domain-specific language
+([DSL](https://en.wikipedia.org/wiki/Domain-specific_language)) for
+mapping the flat structure of a CSV's columns to the nested structure
+of sections, subsections, etc in a wiki page.  The documentation (see
+`csv2wiki --help`) for `sec_map` is thorough; we recommend that while
+reading it you also have at hand an example value for the field, such
+as the one in this
+[sample config file](https://github.com/OpenTechStrategies/MacFound/blob/master/macfound-internal-csv2wiki-config.tmpl) in
+the
 [MacArthur repository](https://github.com/OpenTechStrategies/MacFound).
 
 See the [bug
@@ -49,12 +57,12 @@ Accompanying csv2wiki are two helper programs:
    out which columns (or combinations of columns) offer unique values
    across all rows in the spreadsheet.  Run
 
-           $ python3 ./find-unique-columns --help
+           $ python3 find-unique-columns --help
 
    to see usage.  For example, if you can run it on the accompanying test
    data spreadsheet, [test-input.csv](test-input.csv), like this
 
-           $ ./find-unique-columns -g 2,4,6 -g 3,4 -g 6,1 -g 2,6 -g 3,6 -g 2,3 -s "-" test-input.csv
+           $ python3 find-unique-columns -g 2,4,6 -g 3,4 -g 6,1 -g 2,6 -g 3,6 -g 2,3 -s "-" test-input.csv
 
    the output will show all individually unique columns, the three unique
    combinations of columns (unique when the separator is included, that
@@ -87,7 +95,7 @@ Accompanying csv2wiki are two helper programs:
    the MediaWiki API).  As of this writing, it offers the ability to
    list all pages in the wiki and to delete pages by name.  Run
 
-           $ python3 ./mwiki-sak --help
+           $ python3 mwiki-sak --help
 
    for more information.
 
