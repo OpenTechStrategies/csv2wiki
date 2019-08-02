@@ -12,15 +12,15 @@ Basic usage from current directory:
 
         $ python3 -m csv2wiki -c CONFIG_FILE [OPTIONS] CSV
 
-You can run from a different directory by using PYTHONPATH:
+Or run from a different directory by using PYTHONPATH:
 
         $ PYTHONPATH=<install_dir> python3 -m csv2wiki ...etc...
 
-You can also just run `csv2wiki` after installing it as a package:
+You can also just run `csv2wiki`, after installing it as a package:
 
         $ pip3 install -e .
 
-Run `python3 -m csv2wiki --help` to see complete usage.  Summary:
+Do `python3 -m csv2wiki --help` to see complete usage.  Summary:
 
 You create a config file that is specific to the particular CSV and
 destination wiki.  The config file contains various parameters about
