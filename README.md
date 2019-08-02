@@ -1,21 +1,24 @@
 # csv2wiki: CSV->wiki converter
 
-[csv2wiki](csv2wiki): An open source script to convert rows in a CSV file to pages in a wiki.
+[csv2wiki](csv2wiki): An open source program to convert rows in a CSV file to pages in a wiki.
 
 csv2wiki requires Python 3.  So far, only
-[MediaWiki](https://mediawiki.org/), version 1.28.2 or later, is supported,
-but it would not be hard to extend it to support other wiki APIs.  Basic
-usage from current directory:
+[MediaWiki](https://mediawiki.org/) (v1.28.2 or later) is supported,
+but it would not be hard to extend this to support other wikis.
 
-        $ python3 -m csv2wiki -c CONFIG [OPTIONS] CSV
+## Usage
 
-or after installing as a package
+Basic usage from current directory:
 
-        $ pip install -e .
+        $ python3 -m csv2wiki -c CONFIG_FILE [OPTIONS] CSV
 
-or from a different directory using PYTHONPATH
+You can run from a different directory by using PYTHONPATH:
 
-        $ PYTHONPATH=<install_dir> python3 -m csv2wiki <ARGS>
+        $ PYTHONPATH=<install_dir> python3 -m csv2wiki ...etc...
+
+You can also just run `csv2wiki` after installing it as a package:
+
+        $ pip3 install -e .
 
 Run `python3 -m csv2wiki --help` to see complete usage.  Summary:
 
@@ -26,9 +29,9 @@ CSV should be included, a template for naming the resultant wiki
 pages, etc.  Then you run the script at the command line, passing the
 config file with the -c option and the CSV file as an argument.
 
-A sample of csv2wiki in action (along with a
-[config file](https://github.com/OpenTechStrategies/MacFound/blob/master/macfound-internal-csv2wiki-config.tmpl)
-to drive it) can be found in the
+A sample of csv2wiki in action (including a
+[sample config file](https://github.com/OpenTechStrategies/MacFound/blob/master/macfound-internal-csv2wiki-config.tmpl))
+can be found in the
 [MacArthur repository](https://github.com/OpenTechStrategies/MacFound).
 
 See the [bug
