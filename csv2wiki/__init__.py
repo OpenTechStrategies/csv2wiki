@@ -113,50 +113,59 @@ a sole "[default]" section and the following elements in that section:
                            level: more dots means deeper subsection.
 
                            After the dots comes an optional section
-                           title.  If you put "{N}" (N is an integer)
-                           in that title, it will be replaced with the
+                           title.  Any instances of "{N}" (N is an integer)
+                           in that title will be replaced with the
                            column heading for column N.  Note this
                            uses 1-based indexing: the first column is
                            column 1, and there is no column 0.
 
-                         - If it starts with a number, then the
+                         - If it starts with an integer, then the
                            current row's content for that column
-                           number is inserted into the page here.
+                           number is inserted into the page here;
+                           any following integers (separated only by 
+                           spaces) are processed similarly, with
+                           a single space being emitted between
+                           their content in the output.
 
-                           Everything after the number is ignored.
+                           Everything after the number(s) is ignored.
                            Typically, one puts a comment there
-                           describing the column that corresponds to
-                           that number.
+                           describing the columns that correspond to
+                           the numbers.  While there is no requirement
+                           to begin the comment with "#", it is
+                           a good idea to do so, because that provides
+                           another way to distinguish section-content
+                           lines from section-header lines, which can
+                           greatly help readability in a complex sec_map.
 
                        Here is an example 'sec_map':
 
-                         sec_map:  .    Applicant {1}
+                         sec_map:  .   Applicant {1}
                                    1
-                                   .    Proposal
-                                   ..   Executive Summary
+                                   .   Proposal
+                                   ..  Executive Summary
                                    12 
-                                   ..   Detailed Proposal
+                                   ..  Detailed Proposal
                                    15   
-                                   .    Organization Info
-                                   19   # Contact Name
-                                   20   # Contact Title
-                                   21   # Contact Phone
-                                   22   # Contact Email
-                                   29   # City
-                                   30   # State / Province
-                                   31   # Postal Code
-                                   32   # Country
-                                   .    Comments 
-                                   53   # Reviewer CC Comments
-                                   52   # Reviewer BB Comments
-                                   51   # Reviewer AA Comments
-                                   .    Total Score
+                                   .   Organization Info
+                                   21 19 20  # Title, First Name, Last Name
+                                   21        # Title
+                                   22        # Phone
+                                   23        # Email
+                                   29        # City
+                                   30        # State / Province
+                                   31        # Postal Code
+                                   32        # Country
+                                   .       Comments 
+                                   53        # Reviewer CC Comments
+                                   52        # Reviewer BB Comments
+                                   51        # Reviewer AA Comments
+                                   .       Total Score
                                    40   
-                                   ..   Reviewer CC Score
+                                   ..  Reviewer CC Score
                                    43
-                                   ..   Reviewer BB Score
+                                   ..  Reviewer BB Score
                                    42
-                                   ..   Reviewer AA Score
+                                   ..  Reviewer AA Score
                                    41
 
                        Assuming that column 1 has the header "Name",
@@ -171,7 +180,7 @@ a sole "[default]" section and the following elements in that section:
                            - Detailed Proposal
                              [content of cell 15]
                          + Organization Info
-                           [content of cells 19-22 and 29-32]
+                           [content of cells 19-23 and 29-32]
                          + Comments
                            [content of cells 53, 52, and 51]
                          + Total Score
@@ -478,7 +487,7 @@ class WikiSectionSkel():
     the list is the order of sections in the page.  
 
     This corresponds to the 'sec_map' option in the config file."""
-    def __init__(self, level, title=None, columns=None):
+    def __init__(self, level, title=None, column_groups=None):
         """Create one (sub)section on a wiki page.
 
         LEVEL is the section level: 1 for a top-level section, 
@@ -489,8 +498,14 @@ class WikiSectionSkel():
         represents the header string for column N, but it is the
         caller's responsibility to perform that substitution.
 
-        COLUMNS is the ordered list of columns whose corresponding
-        cells in this row make up the content of the section."""
+        COLUMN_GROUPS is a list of lists, with each inner list being
+        a column group, and each column in that group corresponding
+        to a cell in this row.  Altogether those columns make up the
+        content of the section, with all the columns in a group being
+        put together on a line, separated by a space between each cell
+        value within that group, and then separated from the next
+        group by a newline."""
+
         self.level = level
         self.title = title
         # You might have expected the 'columns' argument to default
@@ -500,7 +515,7 @@ class WikiSectionSkel():
         # that are defined once when the function is defined.  So, in
         # order not to have every skel accumulate every column, we use
         # the flag value None and then shim [] in as the proper default.
-        self.columns = [] if columns is None else columns
+        self.column_groups = [] if column_groups is None else column_groups
 
     def __str__(self):
         """String representation, normally used only for debugging."""
@@ -508,8 +523,8 @@ class WikiSectionSkel():
         spc_pad = " " * self.level
         return "" \
             + dot_pad + " section '%s':\n" % self.title  \
-            + spc_pad + " level:    %d\n"  % self.level  \
-            + spc_pad + " columns:  %s\n"  % self.columns
+            + spc_pad + " level:          %d\n"  % self.level  \
+            + spc_pad + " column_groups:  %s\n"  % self.column_groups
 
 
 class WikiSession:
@@ -592,7 +607,7 @@ class WikiSession:
             #
             # These regexps help us figure out which kind we've got.
             dot_matcher = re.compile("^(\\.+)\\s*(.*)$")
-            col_matcher = re.compile("^([0-9]+)\\s*.*$")
+            col_matcher = re.compile("^(([0-9]+\\s*)+)\\s*.*$")
 
             # Because of the way Python parses ConfigParser syntax,
             # the format we get the sec_map in is one big string,
@@ -607,8 +622,8 @@ class WikiSession:
                 else:
                     m = col_matcher.match(line)
                     if m:
-                        self._section_structure[-1].columns.append(
-                            int(m.group(1)))
+                        column_group = [int(x) for x in m.group(1).rstrip().split()]
+                        self._section_structure[-1].column_groups.append(column_group)
                     else:
                         raise Exception("ERROR: "
                                         + "invalid line in sec_map:\n" \
@@ -746,25 +761,32 @@ class WikiSession:
         """
         text = ""
 
-        for col in skel.columns:
-            cell = self._format_cell(row[col])
-
-            if cell.lower() == "null" and not self._null_as_value:
-                cell = ""
-
-            if cell != "":
-                if col == self._cat_col:
-                    cell_esc = self._wiki_escape_page_title(massage_string(cell))
-                    cell = '[[:Category:' + cell_esc + '|' + cell_esc + ']]\n'
-                    cell += '[[Category:' + cell_esc + ']]'
-                    if self._categories.get(cell_esc) is None:
-                        self._categories[cell_esc] = [page_title]
-                    else:
-                        self._categories[cell_esc].append(page_title)
-                text += "\n" + cell + "\n"
+        for col_group in skel.column_groups:
+            text += "\n"
+            any_column_already_done = False
+            for col in col_group:
+                cell = self._format_cell(row[col])
+    
+                if cell.lower() == "null" and not self._null_as_value:
+                    cell = ""
+    
+                if cell != "":
+                    if col == self._cat_col:
+                        cell_esc = self._wiki_escape_page_title(massage_string(cell))
+                        cell = '[[:Category:' + cell_esc + '|' + cell_esc + ']]\n'
+                        cell += '[[Category:' + cell_esc + ']]'
+                        if self._categories.get(cell_esc) is None:
+                            self._categories[cell_esc] = [page_title]
+                        else:
+                            self._categories[cell_esc].append(page_title)
+                    if any_column_already_done:
+                        text += " "
+                    text += cell
+                    any_column_already_done = True
+            text += "\n"
 
         if text == "":
-            if len(skel.columns) == 0:
+            if len(skel.column_groups) == 0:
                 # Sections that don't directly include columns don't
                 # get the self._keep_empty treatment; instead, they
                 # are always included.
