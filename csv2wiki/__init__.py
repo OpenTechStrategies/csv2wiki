@@ -119,24 +119,6 @@ a sole "[default]" section and the following elements in that section:
                            uses 1-based indexing: the first column is
                            column 1, and there is no column 0.
 
-                         - If it starts with an integer, then the
-                           current row's content for that column
-                           number is inserted into the page here;
-                           any following integers (separated only by 
-                           spaces) are processed similarly, with
-                           a single space being emitted between
-                           their content in the output.
-
-                           Everything after the number(s) is ignored.
-                           Typically, one puts a comment there
-                           describing the columns that correspond to
-                           the numbers.  While there is no requirement
-                           to begin the comment with "#", it is
-                           a good idea to do so, because that provides
-                           another way to distinguish section-content
-                           lines from section-header lines, which can
-                           greatly help readability in a complex sec_map.
-
                          - If it begins with a pipe character ("|"),
                            it indidcates a text line where any instance
                            of "{N}" (N is an integer) in that text line
@@ -147,6 +129,12 @@ a sole "[default]" section and the following elements in that section:
                            If N is also the cat_col, then it will also
                            be a wiki link to the category.
 
+                           csv2wiki used to support sec_map lines that
+                           had only integers in them, but in order to
+                           fulfill that functionality, you should do:
+
+                           | {N}
+
                          - If it begins with a pound sign ("#"), it will
                            be discarded from the sec_map as a comment.
 
@@ -154,35 +142,45 @@ a sole "[default]" section and the following elements in that section:
 
                          sec_map:  .   Applicant {1}
                                    # A comment about applicants
-                                   1
+                                   | {1}
                                    .   Contents
                                    | __TOC__
                                    .   Proposal
                                    ..  Executive Summary
-                                   12 
+                                   | {12}
                                    ..  Detailed Proposal
-                                   15   
+                                   | {15}
                                    .   Organization Info
                                    | Title, First, Last: {21} {19} {20}
-                                   21        # Title
-                                   22        # Phone
-                                   23        # Email
-                                   29        # City
-                                   30        # State / Province
-                                   31        # Postal Code
-                                   32        # Country
+                                   # Title
+                                   | {21}
+                                   # Phone
+                                   | {22}
+                                   # Email
+                                   | {23}
+                                   # City
+                                   | {29}
+                                   # State / Province
+                                   | {30}
+                                   # Postal Code
+                                   | {31}
+                                   # Country
+                                   | {32}
                                    .       Comments 
-                                   53        # Reviewer CC Comments
-                                   52        # Reviewer BB Comments
-                                   51        # Reviewer AA Comments
+                                   # Reviewer CC Comments
+                                   | {53}
+                                   # Reviewer BB Comments
+                                   | {52}
+                                   # Reviewer AA Comments
+                                   | {51}
                                    .       Total Score
-                                   40   
+                                   | {40}
                                    ..  Reviewer CC Score
-                                   43
+                                   | {43}
                                    ..  Reviewer BB Score
-                                   42
+                                   | {42}
                                    ..  Reviewer AA Score
-                                   41
+                                   | {41}
 
                        Assuming that column 1 has the header "Name",
                        the above would produce a wiki page with this
@@ -263,26 +261,26 @@ Here is an example config file:
   toc_name: List_of_Entries
   cat_col: 5
   sec_map:  .   Applicant {1}
-            3
+            | {3}
             .   Executive Summary
-            12
+            | {12}
             .   Detailed Proposal
-            15
+            | {15}
             .   Comments
             ..  Reviewer CC Comments
-            23
+            | {23}
             ..  Reviewer BB Comments
-            21
+            | {21}
             ..  Reviewer AA Comments
-            20
+            | {20}
             .   Total Score
-            30
+            | {30}
             ..  Reviewer CC Score
-            29
+            | {29}
             ..  Reviewer BB Score
-            28
+            | {28}
             ..  Reviewer AA Score
-            27
+            | {27}
 
 The "[default]" section name at the top must be present.  The .ini
 format always has sections, and for the sake of forward compatibility
@@ -618,16 +616,14 @@ class WikiSession:
             # There are two kinds of lines:
             #
             #   1) New section indicator (starts with dots)
-            #   2) Column number (starts with a number)
-            #   3) Text line (starts with a pipe)
-            #   4) Comment line (starts with a pound sign)
+            #   2) Text line (starts with a pipe)
+            #   3) Comment line (starts with a pound sign)
             #      - This is not handled explicitly here because
             #        it's handled by the python config parser
             #        before we get the sec_map
             #
             # These regexps help us figure out which kind we've got.
             dot_matcher = re.compile("^(\\.+)\\s*(.*)$")
-            col_matcher = re.compile("^(([0-9]+\\s*)+)\\s*.*$")
             txt_matcher = re.compile("^\\|\\s*(.*)$")
 
             # Because of the way Python parses ConfigParser syntax,
@@ -643,12 +639,6 @@ class WikiSession:
                 elif txt_matcher.search(line):
                     m = txt_matcher.match(line)
                     self._section_structure[-1].content_specifiers.append(m.group(1))
-                elif col_matcher.search(line):
-                    m = col_matcher.match(line)
-                    if m:
-                        column_group_as_string = \
-                                " ".join(["{" + x + "}" for x in m.group(1).rstrip().split()])
-                        self._section_structure[-1].content_specifiers.append(column_group_as_string)
                 else:
                     raise Exception("ERROR: "
                                     + "invalid line in sec_map:\n" \
