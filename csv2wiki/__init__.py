@@ -137,17 +137,29 @@ a sole "[default]" section and the following elements in that section:
                            lines from section-header lines, which can
                            greatly help readability in a complex sec_map.
 
+                         - If it begins with a pipe character ("|"),
+                           it indidcates a text line where any instance
+                           of "{N}" (N is an integer) in that text line
+                           will be replaced with the row data for that
+                           column.  Any space immediately following
+                           the pipe will be removed.
+
+                           If N is also the cat_col, then it will also
+                           be a wiki link to the category.
+
                        Here is an example 'sec_map':
 
                          sec_map:  .   Applicant {1}
                                    1
+                                   .   Contents
+                                   | __TOC__
                                    .   Proposal
                                    ..  Executive Summary
                                    12 
                                    ..  Detailed Proposal
                                    15   
                                    .   Organization Info
-                                   21 19 20  # Title, First Name, Last Name
+                                   | Title, First, Last: {21} {19} {20}
                                    21        # Title
                                    22        # Phone
                                    23        # Email
@@ -174,12 +186,15 @@ a sole "[default]" section and the following elements in that section:
 
                          + Applicant Name
                            [content of cell 1]
+                         + Contents
+                           [Full table of contents here insteat of at top]
                          + Proposal
                            - Executive Summary
                              [content of cell 12]
                            - Detailed Proposal
                              [content of cell 15]
                          + Organization Info
+                           Title, First, Last: [contents of cells 21 19 20]
                            [content of cells 19-23 and 29-32]
                          + Comments
                            [content of cells 53, 52, and 51]
@@ -487,7 +502,7 @@ class WikiSectionSkel():
     the list is the order of sections in the page.  
 
     This corresponds to the 'sec_map' option in the config file."""
-    def __init__(self, level, title=None, column_groups=None):
+    def __init__(self, level, title=None, content_specifiers=None):
         """Create one (sub)section on a wiki page.
 
         LEVEL is the section level: 1 for a top-level section, 
@@ -498,13 +513,9 @@ class WikiSectionSkel():
         represents the header string for column N, but it is the
         caller's responsibility to perform that substitution.
 
-        COLUMN_GROUPS is a list of lists, with each inner list being
-        a column group, and each column in that group corresponding
-        to a cell in this row.  Altogether those columns make up the
-        content of the section, with all the columns in a group being
-        put together on a line, separated by a space between each cell
-        value within that group, and then separated from the next
-        group by a newline."""
+        CONTENT_SPECIFIERS a list of strings, where each represents
+        a portion of content that can replace occurrences of "{N}"
+        with the specific cell in the row related to this page."""
 
         self.level = level
         self.title = title
@@ -515,7 +526,7 @@ class WikiSectionSkel():
         # that are defined once when the function is defined.  So, in
         # order not to have every skel accumulate every column, we use
         # the flag value None and then shim [] in as the proper default.
-        self.column_groups = [] if column_groups is None else column_groups
+        self.content_specifiers = [] if content_specifiers is None else content_specifiers
 
     def __str__(self):
         """String representation, normally used only for debugging."""
@@ -524,7 +535,7 @@ class WikiSectionSkel():
         return "" \
             + dot_pad + " section '%s':\n" % self.title  \
             + spc_pad + " level:          %d\n"  % self.level  \
-            + spc_pad + " column_groups:  %s\n"  % self.column_groups
+            + spc_pad + " content_specifiers:  %s\n"  % self.content_specifiers
 
 
 class WikiSession:
@@ -604,30 +615,36 @@ class WikiSession:
             #
             #   1) New section indicator (starts with dots)
             #   2) Column number (starts with a number)
+            #   3) Text line (starts with a pipe)
             #
             # These regexps help us figure out which kind we've got.
             dot_matcher = re.compile("^(\\.+)\\s*(.*)$")
             col_matcher = re.compile("^(([0-9]+\\s*)+)\\s*.*$")
+            txt_matcher = re.compile("^\\|\\s*(.*)$")
 
             # Because of the way Python parses ConfigParser syntax,
             # the format we get the sec_map in is one big string,
             # splittable on line breaks into a list of lines.
             for line in sec_map.splitlines():
                 # As usual, I wish Python had Lisp-style 'cond'.
-                m = dot_matcher.match(line)
-                if m:
+                if dot_matcher.search(line):
+                    m = dot_matcher.match(line)
                     self._section_structure.append(
                         WikiSectionSkel(m.group(1).count("."),
                                         m.group(2) or ""))
-                else:
+                elif txt_matcher.search(line):
+                    m = txt_matcher.match(line)
+                    self._section_structure[-1].content_specifiers.append(m.group(1))
+                elif col_matcher.search(line):
                     m = col_matcher.match(line)
                     if m:
-                        column_group = [int(x) for x in m.group(1).rstrip().split()]
-                        self._section_structure[-1].column_groups.append(column_group)
-                    else:
-                        raise Exception("ERROR: "
-                                        + "invalid line in sec_map:\n" \
-                                        + "       '%s'\n" % line)
+                        column_group_as_string = \
+                                " ".join(["{" + x + "}" for x in m.group(1).rstrip().split()])
+                        self._section_structure[-1].content_specifiers.append(column_group_as_string)
+                else:
+                    raise Exception("ERROR: "
+                                    + "invalid line in sec_map:\n" \
+                                    + "       '%s'\n" % line)
         else:  # no sec_map provided, so contruct trivial one from headers
             for i in range(1, len(csv_input.headers)):
                 self._section_structure.append(
@@ -693,19 +710,6 @@ class WikiSession:
             s = s[:-1]
         return s
 
-    def _format_cell(self, cell):
-        """Take the html in CELL and adjust it to be mediawiki-friendly.  
-        This is MediaWiki-specific, but I imagine a future version of
-        this might want to override with formatting for other wikis."""
-        # Mediawiki doesn't do tbody
-        cell = cell.replace("<tbody>", "").replace("</tbody>", "")
-        # Make soup
-        warnings.filterwarnings(
-            "ignore", category=UserWarning, module='bs4')
-        soup = BeautifulSoup(cell, "html.parser")
-        soup = wikify_anchors(soup)
-        return str(soup)
-
     def _maybe_msg(self, msg):
         """Write MSG to self._msg_out, unless the latter is None."""
         if self._msg_out is not None:
@@ -751,42 +755,20 @@ class WikiSession:
             # Again, klugey, but we want easy page-boundary visibility.
             self._dry_run_out.write("\n" + "#" * 78 + "\n\n")
 
-    def _do_skel(self, skel, page_title, row, row_num):
+    def _do_skel(self, skel, row):
         """Return the text for a given part of a wiki page.
         SKEL is a WikiSectionSkel.
-        PAGE_TITLE is the name of the wiki page currently being built;
-        it is needed for category construction.
         ROW is one row (a list of cells) from the csv input.
-        ROW_NUM is ROW's row number in the csv.
         """
         text = ""
 
-        for col_group in skel.column_groups:
+        for content_specifier in skel.content_specifiers:
             text += "\n"
-            any_column_already_done = False
-            for col in col_group:
-                cell = self._format_cell(row[col])
-    
-                if cell.lower() == "null" and not self._null_as_value:
-                    cell = ""
-    
-                if cell != "":
-                    if col == self._cat_col:
-                        cell_esc = self._wiki_escape_page_title(massage_string(cell))
-                        cell = '[[:Category:' + cell_esc + '|' + cell_esc + ']]\n'
-                        cell += '[[Category:' + cell_esc + ']]'
-                        if self._categories.get(cell_esc) is None:
-                            self._categories[cell_esc] = [page_title]
-                        else:
-                            self._categories[cell_esc].append(page_title)
-                    if any_column_already_done:
-                        text += " "
-                    text += cell
-                    any_column_already_done = True
+            text += content_specifier.format(*row)
             text += "\n"
 
         if text == "":
-            if len(skel.column_groups) == 0:
+            if len(skel.content_specifiers) == 0:
                 # Sections that don't directly include columns don't
                 # get the self._keep_empty treatment; instead, they
                 # are always included.
@@ -804,6 +786,46 @@ class WikiSession:
             + " " + (skel.title.format(*self._csv_input.headers))  \
             + " " + ("=" * skel.level)                             \
             + text
+
+    def _wikiize_cell(self, page_title, data_row, col_idx):
+        """Update a cell to be ready for the wiki.
+
+        A cell is defined by the DATA_ROW and the COL_IDX, and sometimes
+        a PAGE_TITLE is needed if the cell is the category_column in
+        the sec_map in order to make the link look good.
+
+        Data from the spreadsheet may not be properly ready to land
+        on mediawiki.  This is a central place to handle preparing
+        and updating those strings.
+
+        This is MediaWiki-specific, but I imagine a future version of
+        this might want to override with formatting for other wikis."""
+
+        cell = data_row[col_idx]
+
+        if cell.lower() == "null" and not self._null_as_value:
+            cell = ""
+        elif cell != "":
+            # Mediawiki doesn't do tbody
+            cell = cell.replace("<tbody>", "").replace("</tbody>", "")
+            # Make soup
+            warnings.filterwarnings(
+                "ignore", category=UserWarning, module='bs4')
+            soup = BeautifulSoup(cell, "html.parser")
+            soup = wikify_anchors(soup)
+
+            cell = str(soup)
+
+            if col_idx == self._cat_col:
+                cell_esc = self._wiki_escape_page_title(massage_string(cell))
+                cell = '[[:Category:' + cell_esc + '|' + cell_esc + ']]\n'
+                cell += '[[Category:' + cell_esc + ']]'
+                if self._categories.get(cell_esc) is None:
+                    self._categories[cell_esc] = [page_title]
+                else:
+                    self._categories[cell_esc].append(page_title)
+
+        return cell
 
     def _make_page(self, row):
         """Build and save a page based on ROW.
@@ -838,8 +860,11 @@ class WikiSession:
 
         # Crawl down the page skel, appending page content as needed.
         page_text = ""
+
+        # We wikiize the whole row once so sections can reuse
+        wikiized_row = [self._wikiize_cell(page_title, row, col_idx) for col_idx in range(len(row))]
         for skel in self._section_structure:
-            page_text += self._do_skel(skel, page_title, row, self._categories)
+            page_text += self._do_skel(skel, wikiized_row)
 
         # If the number of categorized pages didn't change, then
         # this row (page) didn't fall into any named category, so put
