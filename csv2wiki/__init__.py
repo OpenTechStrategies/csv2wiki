@@ -147,9 +147,13 @@ a sole "[default]" section and the following elements in that section:
                            If N is also the cat_col, then it will also
                            be a wiki link to the category.
 
+                         - If it begins with a pound sign ("#"), it will
+                           be discarded from the sec_map as a comment.
+
                        Here is an example 'sec_map':
 
                          sec_map:  .   Applicant {1}
+                                   # A comment about applicants
                                    1
                                    .   Contents
                                    | __TOC__
@@ -616,6 +620,10 @@ class WikiSession:
             #   1) New section indicator (starts with dots)
             #   2) Column number (starts with a number)
             #   3) Text line (starts with a pipe)
+            #   4) Comment line (starts with a pound sign)
+            #      - This is not handled explicitly here because
+            #        it's handled by the python config parser
+            #        before we get the sec_map
             #
             # These regexps help us figure out which kind we've got.
             dot_matcher = re.compile("^(\\.+)\\s*(.*)$")
