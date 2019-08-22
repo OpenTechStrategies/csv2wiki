@@ -576,7 +576,7 @@ class WikiSession:
         self._password           = config['password']
         self._title_tmpl         = config['title_tmpl']
         self._toc_name           = config['toc_name']
-        self._cat_col            = int(config.get('cat_col', 0))
+        self._cat_col            = int(config.get('cat_col', "none"))
         self._last_cat           = config.get('last_cat', None)
         self._keep_empty         = config.get('keep_empty', False)
         self._path_to_api        = config.get('path_to_api')
@@ -588,9 +588,7 @@ class WikiSession:
         # requires the default value to be number or a string.  But
         # internally, None is obviously what we want to use to signify
         # that there is no category column, so we convert to that.
-        # (And the loss of column 0 as a valid value doesn't matter,
-        # because our columns use 1-based indexing not 0-based.)
-        if self._cat_col == 0:
+        if self._cat_col == "none":
             self._cat_col = None
 
         # This maps page titles to True, so this session can remember
