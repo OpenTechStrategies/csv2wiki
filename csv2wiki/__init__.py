@@ -584,6 +584,15 @@ class WikiSession:
         # This gets inhaled into self._section_structure later:
         sec_map                  = config.get('sec_map', None)
         
+        # We couldn't default it to None above because config.get()
+        # requires the default value to be number or a string.  But
+        # internally, None is obviously what we want to use to signify
+        # that there is no category column, so we convert to that.
+        # (And the loss of column 0 as a valid value doesn't matter,
+        # because our columns use 1-based indexing not 0-based.)
+        if self._cat_col == 0:
+            self._cat_col = None
+
         # This maps page titles to True, so this session can remember
         # every page created and thus protect against double creation.
         self._page_titles = {}
@@ -814,7 +823,7 @@ class WikiSession:
 
             cell = str(soup)
 
-            if col_idx == self._cat_col:
+            if (self._cat_col is not None) and (col_idx == self._cat_col):
                 cell_esc = self._wiki_escape_page_title(massage_string(cell))
                 cell = '[[:Category:' + cell_esc + '|' + cell_esc + ']]\n'
                 cell += '[[Category:' + cell_esc + ']]'
@@ -904,6 +913,9 @@ class WikiSession:
     
         # create the TOC page.
         toc_text = ""
+
+        # Remember, there's a magical category whose name is "".
+        # Even if we have no other categories, we have that one.
         num_categories = len(list(self._categories.keys()))
     
         # This got too big to fit into a lambda anymore :-).
@@ -958,7 +970,7 @@ class WikiSession:
         self._maybe_msg(("CREATED TOC: \"" + self._toc_name + "\"\n"))
         
         # generate the category pages
-        if self._cat_col:
+        if self._cat_col is not None:
             for category in list(self._categories.keys()):
                 self._save_page('Category:' + category, "")
                 self._maybe_msg(("CREATED CATEGORY: \"" + category + "\"\n"))
