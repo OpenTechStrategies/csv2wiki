@@ -220,10 +220,19 @@ a sole "[default]" section and the following elements in that section:
                        page never affects config file references to
                        column numbers.
 
+  default_cat:         The default category to use for pages that have
+                       no category.  This is used only when cat_col is 
+                       present *and* there are multiple categories seen
+                       (i.e., other pages do have categories, such that
+                       there is more than one active category already).
+                       The value is a string; in most cases, you will
+                       want the value of last_cat to be the same as this.
+
   last_cat:            The (case-insensitive) name of the category, if
                        any, that should always be listed last in the
                        table of contents, even if that category contains
-                       more pages than some other category.
+                       more pages than some other category.  See also
+                       default_cat.
 
   keep_empty:          If present, still create sections for empty
                        cells in the CSV.  If a value is provided, use
@@ -577,6 +586,7 @@ class WikiSession:
         self._title_tmpl         = config['title_tmpl']
         self._toc_name           = config['toc_name']
         self._cat_col            = config.get('cat_col', None)
+        self._default_cat        = config.get('default_cat', None)
         self._last_cat           = config.get('last_cat', None)
         self._keep_empty         = config.get('keep_empty', False)
         self._path_to_api        = config.get('path_to_api')
@@ -944,19 +954,32 @@ class WikiSession:
             else:
                 return key.strip().lower()
         
+        if ((num_categories > 1) and (self._categories.get("") is not None)):
+            if self._default_cat is not None:
+                self._categories[self._default_cat] = self._categories[""]
+            else:
+                # This is janky, but we have to do something, because
+                # the TOC is going to be organized by category, and we
+                # don't want some pages to be left out just because
+                # they were uncategorized.
+                #
+                # Furthermore, we can't use "" as a category, because
+                # trying to actually create that category would result
+                # in an error from the MediaWiki API:
+                #
+                #   ...
+                #   raise mwclient.errors.InvalidPageTitle(info.get('invalidreason'))
+                #     mwclient.errors.InvalidPageTitle: \
+                #     The requested page title is empty or contains only the name of a namespace.
+                #
+                # So, as a last resort, we just make something up.
+                def_cat = "csv2wiki Miscellaneous Default Category"
+                self._categories[def_cat] = self._categories[""]
+            del self._categories[""]
+
         for cat in sorted(list(self._categories.keys()), key=categories_sorter):
             if num_categories > 1:
-                usable_cat = cat
-                if usable_cat == "":
-                    # Yup, we're just going to hardcode this right here.
-                    # It's a very rare case: the conversion is using
-                    # categories, and we have more than one category
-                    # available, but some pages had no category.  So what
-                    # category should they go in (given that the TOC will
-                    # be organized into categories because multiple
-                    # categories are available)?  Answer: make one up.
-                    usable_cat = "csv2wiki Miscellaneous Default Category"
-                usable_cat = usable_cat + " (" + str(len(self._categories[cat])) + ")"
+                usable_cat = cat + " (" + str(len(self._categories[cat])) + ")"
                 toc_text += "==== " + usable_cat + " ====\n\n"
             for pnam in sorted(self._categories[cat]):
                 toc_text += '* [[' + pnam + ']]\n'
@@ -967,6 +990,12 @@ class WikiSession:
         # generate the category pages
         if self._cat_col is not None:
             for category in list(self._categories.keys()):
+                # Note that just saving the page here might not
+                # instantiate the category page with all of its
+                # corresponding categorized pages listed on it.  
+                # You may need to run the 'rebuildall.php' script
+                # on the MediaWiki instance.  See the csv2wiki help
+                # output for more about this.
                 self._save_page('Category:' + category, "")
                 self._maybe_msg(("CREATED CATEGORY: \"" + category + "\"\n"))
     
