@@ -874,6 +874,26 @@ class WikiSession:
         page_text = ""
 
         # We wikiize the whole row once so sections can reuse
+        #
+        # We preprocess the whole row unconditionally, without knowing
+        # which columns self._section_structure will actually use.
+        # 
+        # This means we end up calculating page categories that may
+        # never be used, because category creation currently happens
+        # in self._wikiize_cell().  It's easiest for it to happen
+        # there because in self._wikiize_cell() we know the col_idx,
+        # whereas later when we're processing self._section_structure
+        # in self._do_skel() we won't know which column indices are
+        # actually used, as they're only referenced "under the hood"
+        # in Python's string-formatting code.
+        # 
+        # In the end, it's okay that we calculate those categories
+        # unconditionally because a) we won't actually emit them on
+        # the regular wiki pages unless that section is used somewhere
+        # in self._section_structure and b) we'll check self._cat_col
+        # before creating the Category namespace pages.  Still, these
+        # distant-but-related conditionals are perhaps a bit fragile,
+        # so this comment is here to help remind us what's going on.
         wikiized_row = [self._wikiize_cell(page_title, row, col_idx) for col_idx in range(len(row))]
         for skel in self._section_structure:
             page_text += self._do_skel(skel, wikiized_row)
