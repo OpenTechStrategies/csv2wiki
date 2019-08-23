@@ -891,8 +891,13 @@ class WikiSession:
         # unconditionally because a) we won't actually emit them on
         # the regular wiki pages unless that section is used somewhere
         # in self._section_structure and b) we'll check self._cat_col
-        # before creating the Category namespace pages.  Still, these
-        # distant-but-related conditionals are perhaps a bit fragile,
+        # before creating the Category namespace pages, and presumably
+        # the user would only set the cat_col config parameter if they
+        # were using the column somewhere in the sec_map.
+        #
+        # TODO: Document the above point.
+        # 
+        # Still, these distant-but-related conditionals are brittle,
         # so this comment is here to help remind us what's going on.
         wikiized_row = [self._wikiize_cell(page_title, row, col_idx) for col_idx in range(len(row))]
         for skel in self._section_structure:
