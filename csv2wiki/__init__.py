@@ -576,7 +576,7 @@ class WikiSession:
         self._password           = config['password']
         self._title_tmpl         = config['title_tmpl']
         self._toc_name           = config['toc_name']
-        self._cat_col            = int(config.get('cat_col', 999999999))
+        self._cat_col            = config.get('cat_col', None)
         self._last_cat           = config.get('last_cat', None)
         self._keep_empty         = config.get('keep_empty', False)
         self._path_to_api        = config.get('path_to_api')
@@ -584,12 +584,9 @@ class WikiSession:
         # This gets inhaled into self._section_structure later:
         sec_map                  = config.get('sec_map', None)
         
-        # We couldn't default it to None above because config.get()
-        # requires the default value to be a number.  But internally,
-        # None is obviously what we want to use to signify that there
-        # is no category column, so we convert to that.
-        if self._cat_col == 999999999:
-            self._cat_col = None
+        # Category column is either None or a number (not a string).
+        if self._cat_col is not None:
+            self._cat_col = int(self._cat_col)
 
         # This maps page titles to True, so this session can remember
         # every page created and thus protect against double creation.
