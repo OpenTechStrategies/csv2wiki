@@ -799,16 +799,12 @@ class WikiSession:
             + " " + ("=" * skel.level)                             \
             + text
 
-    def _wikiize_cell(self, page_title, cell, col_idx):
+    def _wikiize_cell(self, cell):
         """Update a CELL to be ready for the wiki.
 
         Data from the spreadsheet may not be properly ready to land
         on mediawiki.  This is a central place to handle preparing
         and updating those strings.
-
-        Achieve this by removing some tags, as well as adding information
-        coming if this CELL is in the category column (checked against
-        COL_IDX), for which PAGE_TITLE is also needed.
 
         This is MediaWiki-specific, but I imagine a future version of
         this might want to override with formatting for other wikis."""
@@ -826,14 +822,23 @@ class WikiSession:
 
             cell = str(soup)
 
-            if (self._cat_col is not None) and (col_idx == self._cat_col):
-                cell_esc = self._wiki_escape_page_title(massage_string(cell))
-                cell = '[[:Category:' + cell_esc + '|' + cell_esc + ']]\n'
-                cell += '[[Category:' + cell_esc + ']]'
-                if self._categories.get(cell_esc) is None:
-                    self._categories[cell_esc] = [page_title]
-                else:
-                    self._categories[cell_esc].append(page_title)
+        return cell
+
+    def _update_category_cell(self, cell, page_title):
+        """Update a CELL to link to the category.
+
+        Adds the page title information, as well as update the categories
+        in the overall structure for table of contents later.  This does
+        not check if CELL should be the category, and counts on the
+        caller to ensure that it is the correct column."""
+
+        cell_esc = self._wiki_escape_page_title(massage_string(cell))
+        cell = '[[:Category:' + cell_esc + '|' + cell_esc + ']]\n'
+        cell += '[[Category:' + cell_esc + ']]'
+        if self._categories.get(cell_esc) is None:
+            self._categories[cell_esc] = [page_title]
+        else:
+            self._categories[cell_esc].append(page_title)
 
         return cell
 
@@ -875,16 +880,15 @@ class WikiSession:
         #
         # We preprocess the whole row unconditionally, without knowing
         # which columns self._section_structure will actually use.
-        # 
-        # This means we end up calculating page categories that may
-        # never be used, because category creation currently happens
-        # in self._wikiize_cell().  It's easiest for it to happen
-        # there because in self._wikiize_cell() we know the col_idx,
-        # whereas later when we're processing self._section_structure
-        # in self._do_skel() we won't know which column indices are
-        # actually used, as they're only referenced "under the hood"
-        # in Python's string-formatting code.
-        # 
+        wikiized_row = [self._wikiize_cell(cell) for cell in row]
+
+        # We categorize the column if the _cat_col is set at all,
+        # regardless of whether the column is actually use in the sec_map
+        #
+        # Since this is where the wiki TOC gets it's category information
+        # from, we need to do this regardless of whether it appears on the
+        # the page, if a cat_col was specified.
+        #
         # In the end, it's okay that we calculate those categories
         # unconditionally because a) we won't actually emit them on
         # the regular wiki pages unless that section is used somewhere
@@ -892,12 +896,13 @@ class WikiSession:
         # before creating the Category namespace pages, and presumably
         # the user would only set the cat_col config parameter if they
         # were using the column somewhere in the sec_map.
-        #
-        # TODO: Document the above point.
         # 
         # Still, these distant-but-related conditionals are brittle,
         # so this comment is here to help remind us what's going on.
-        wikiized_row = [self._wikiize_cell(page_title, cell, col_idx) for (cell, col_idx) in zip(row, range(len(row)))]
+        if (self._cat_col is not None):
+            wikiized_row[self._cat_col] = \
+                self._update_category_cell(wikiized_row[self._cat_col], page_title)
+
         for skel in self._section_structure:
             page_text += self._do_skel(skel, wikiized_row)
 
