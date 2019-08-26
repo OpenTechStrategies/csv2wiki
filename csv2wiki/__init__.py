@@ -799,21 +799,19 @@ class WikiSession:
             + " " + ("=" * skel.level)                             \
             + text
 
-    def _wikiize_cell(self, page_title, data_row, col_idx):
-        """Update a cell to be ready for the wiki.
-
-        A cell is defined by the DATA_ROW and the COL_IDX, and sometimes
-        a PAGE_TITLE is needed if the cell is the category_column in
-        the sec_map in order to make the link look good.
+    def _wikiize_cell(self, page_title, cell, col_idx):
+        """Update a CELL to be ready for the wiki.
 
         Data from the spreadsheet may not be properly ready to land
         on mediawiki.  This is a central place to handle preparing
         and updating those strings.
 
+        Achieve this by removing some tags, as well as adding information
+        coming if this CELL is in the category column (checked against
+        COL_IDX), for which PAGE_TITLE is also needed.
+
         This is MediaWiki-specific, but I imagine a future version of
         this might want to override with formatting for other wikis."""
-
-        cell = data_row[col_idx]
 
         if cell.lower() == "null" and not self._null_as_value:
             cell = ""
@@ -899,7 +897,7 @@ class WikiSession:
         # 
         # Still, these distant-but-related conditionals are brittle,
         # so this comment is here to help remind us what's going on.
-        wikiized_row = [self._wikiize_cell(page_title, row, col_idx) for col_idx in range(len(row))]
+        wikiized_row = [self._wikiize_cell(page_title, cell, col_idx) for (cell, col_idx) in zip(row, range(len(row)))]
         for skel in self._section_structure:
             page_text += self._do_skel(skel, wikiized_row)
 
