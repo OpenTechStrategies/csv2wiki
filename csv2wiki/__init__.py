@@ -651,6 +651,8 @@ class WikiSession:
                         WikiSectionSkel(m.group(1).count("."),
                                         m.group(2) or ""))
                 elif txt_matcher.search(line):
+                    if len(self._section_structure) == 0:
+                        self._section_structure.append(WikiSectionSkel(0, ""))
                     m = txt_matcher.match(line)
                     self._section_structure[-1].content_specifiers.append(m.group(1))
                 else:
