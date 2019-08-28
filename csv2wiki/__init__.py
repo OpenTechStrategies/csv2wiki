@@ -333,6 +333,12 @@ since it's how the config file is indicated in the first place.
                        i.e, has any member pages), no matter what the
                        category's size or where it sits alphabetically.
 
+  --extra-cats=FILE    FILE contains a list of categories, one per line,
+                       for which csv2wiki should make Category pages.
+                       This is useful when pages will contain Category
+                       links not created via cat_col. This can be used
+                       together with cat_col; they are not mutually exclusive.
+
   -q | --quiet         Be silent except for error messages.
 
   --dry-run            Write pages to stdout instead of to the wiki.
@@ -920,6 +926,19 @@ class WikiSession:
         self._save_page(page_title, page_text)
         self._maybe_msg(("CREATED PAGE: \"" + page_title + "\"\n"))
 
+    def _save_category_page(self, category):
+        """Add a category page for CATEGORY to the wiki.
+
+        Note that just saving the page here might not
+        instantiate the category page with all of its
+        corresponding categorized pages listed on it.  
+        You may need to run the 'rebuildall.php' script
+        on the MediaWiki instance.  See the csv2wiki help
+        output for more about this."""
+
+        self._save_page('Category:' + category, "")
+        self._maybe_msg(("CREATED CATEGORY: \"" + category + "\"\n"))
+
     def make_pages(self, pare, cat_sort="size"):
         """Create a wiki page for each row in the csv.
         The csv must have at least one row of content.
@@ -1020,15 +1039,11 @@ class WikiSession:
         # generate the category pages
         if self._cat_col is not None:
             for category in list(self._categories.keys()):
-                # Note that just saving the page here might not
-                # instantiate the category page with all of its
-                # corresponding categorized pages listed on it.  
-                # You may need to run the 'rebuildall.php' script
-                # on the MediaWiki instance.  See the csv2wiki help
-                # output for more about this.
-                self._save_page('Category:' + category, "")
-                self._maybe_msg(("CREATED CATEGORY: \"" + category + "\"\n"))
-    
+                self._save_category_page(category)
+
+    def make_extra_categories(self, extra_categories):
+        for category in extra_categories:
+            self._save_category_page(category)
 
 class CSVInput():
     """Iterator class encapsulating a CSV file as input."""
@@ -1175,6 +1190,7 @@ def main():
                                     "dry-run",
                                     "null-as-value",
                                     "cat-sort=",
+                                    "extra-cats=",
                                     "pare=",
                                     "config=",
                                     "show-columns"])
@@ -1190,6 +1206,7 @@ def main():
     dry_run_out = None
     bad_opt_seen = False
     null_as_value = False
+    extra_cats = []
     cat_sort = "size"
     pare = None
     show_columns = False
@@ -1208,6 +1225,9 @@ def main():
             null_as_value = True
         elif o in ("--cat-sort",):
             cat_sort = a.lower()
+        elif o in ("--extra-cats",):
+            with open(a) as f:
+                extra_cats = [ c.strip() for c in f.readlines() ]
         elif o in ("--pare",):
             pare = int(a)
         elif o in ("--show-columns",):
@@ -1260,6 +1280,9 @@ def main():
         usage(errout=True)
         sys.exit(2)
     try:
+        # We make extra category pages first so that they exist when making
+        # the rest of the pages so they aren't red links
+        wiki_sess.make_extra_categories(extra_cats)
         wiki_sess.make_pages(pare, cat_sort)
     except IndexError as err:
         sys.stderr.write("ERROR: '%s'\n" % err)
