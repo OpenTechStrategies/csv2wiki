@@ -49,6 +49,7 @@ class Session():
         edited = slurp('edited.'+self.domain)
         for idnum in self.files.keys():
             for tag in self.tags:
+                print(tag)
                 if tag in self.files[idnum]:
                     fname = "%s_%s%s" % (idnum, tag, os.path.splitext(self.files[idnum][tag])[1])
                     if fname in edited:
@@ -125,12 +126,13 @@ class Session():
                 continue
 
             page_title = line[4:-2].replace(' ','_')
+
             self.files[idnum]['page'] = page_title
 
     def login(self, domain, username, pword):
         """Login via mwclient"""
         self.site = mwclient.Site(domain,
-            path='/mwiki/',
+            path='/',
             clients_useragent="upload.py")
         self.site.login(username, pword)
            
@@ -182,13 +184,21 @@ class Session():
                         print("Such errors were solved in the past by increasing the max file upload size in php.ini and LocalSettings.php")
                         continue
                     except mwclient.errors.APIError:
-                        if fname.endswith("doc") or fname.endswith("docx"):
-                            print("Doc file treated as a bad zip: %s" % fname)
-                        else:
-                            raise
+                        print("Huh, error")
+                        continue
+                        #if fname.endswith("doc") or fname.endswith("docx"):
+                        #    print("Doc file treated as a bad zip: %s" % fname)
+                        #else:
+                        #    raise
+                    if 'upload' in r:
+                        r = r['upload']
+                    print(tag)
+                    print(idnum)
+                    print(r)
+                    print("WTF")
                     if r['result'] == 'Success':
                         print("Uploaded " + fpath)
-                        self.record_upload(fname)
+                        #self.record_upload(fname)
                         continue
                     elif r['result'] == 'Warning':
                         # All this warnings stuff was mostly for debugging.  By
@@ -204,7 +214,6 @@ class Session():
                         if 'duplicate-archive' in r['warnings']:
                             print("%s is a duplicate of %s" % (fname, r['warnings']['duplicate-archive']))
                             continue
-                    print(r)
                     print("Exiting")
 
 if __name__ == "__main__":

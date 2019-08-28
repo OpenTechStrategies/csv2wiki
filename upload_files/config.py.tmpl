@@ -7,14 +7,16 @@ docdir = "path/to/a/bunch/of/files"
 # The regex should use parentheses to create a group that is the id of
 # the file (it should correspond to an id for the page the file
 # corresponds to).
-tags = {'mou': ['MOU', r'^([0-9]+)__MOU__'],
+tags = {'application': ['Application', r'^([0-9]+)_Application.pdf'],
+        'registration': ['Registration', r'^([0-9]+)_Registration.pdf'],
+        'mou': ['MOU', r'^([0-9]+)__MOU__'],
 	'team': ['Team Structure', r'^([0-9]+)__Team_Structure__']
         }
 
 # This is the table of contents page.  Each entry in the TOC should be
 # a page title that ends with (id).  We use the TOC to match up ids
 # with page title and then use the ids to match files with pages.
-toc = '100Change_TOC'
+toc = '2019_100Change_TOC'
 
 # Each table of contents entry should contain a unique id for that
 # page.  Obviously the title is a unique id, but we found it
