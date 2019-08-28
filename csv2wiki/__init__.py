@@ -887,7 +887,7 @@ class WikiSession:
         # We categorize the column if the _cat_col is set at all,
         # regardless of whether the column is actually use in the sec_map
         #
-        # Since this is where the wiki TOC gets it's category information
+        # Since this is where the wiki TOC gets its category information
         # from, we need to do this regardless of whether it appears on the
         # the page, if a cat_col was specified.
         #
@@ -901,7 +901,7 @@ class WikiSession:
         # 
         # Still, these distant-but-related conditionals are brittle,
         # so this comment is here to help remind us what's going on.
-        if (self._cat_col is not None):
+        if self._cat_col is not None:
             wikiized_row[self._cat_col] = \
                 self._update_category_cell(wikiized_row[self._cat_col], page_title)
 
