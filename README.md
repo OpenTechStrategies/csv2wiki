@@ -10,7 +10,7 @@ but it would not be hard to extend this to support other wikis.
 
 Basic usage from current directory:
 
-        $ python3 -m csv2wiki -c CONFIG_FILE [OPTIONS] CSV
+        $ python3 -m csv2wiki -c CONFIG_FILE --csv=CSV [OPTIONS]
 
 Or run from a different directory by using PYTHONPATH:
 
