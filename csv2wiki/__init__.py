@@ -341,6 +341,16 @@ since it's how the config file is indicated in the first place.
                        links not created via cat_col. This can be used
                        together with cat_col; they are not mutually exclusive.
 
+  --attachments=FILE   A FILE that has a list of attachments to add,
+                       separated by new lines.  Each line should have
+                       a unique name for the attachment, like
+                       application_5231, followed by a pipe character
+                       ('|'), and then a file location to upload.
+
+                       csv2wiki will check to see if the attachment
+                       name already exists on the wiki and will skip
+                       if it does.
+
   -q | --quiet         Be silent except for error messages.
 
   --dry-run            Write pages to stdout instead of to the wiki.
@@ -1053,6 +1063,32 @@ class WikiSession:
         if self._cat_col is not None:
             self.make_categories(self._categories.keys())
 
+    def upload_attachments(self, attachments):
+        """
+        Upload all the ATTACHMENTS if there is no matching file yet on
+        the server.  ATTACHMENTS needs to be a list of lists, the inner
+        being two items: the name and the file location.
+        """
+
+        current_attachment_names = [ image.imageinfo['comment'] for image in  self._site_conn.allimages() ]
+
+        for attachment in attachments:
+            if attachment[0] in current_attachment_names:
+                continue
+
+            if self._dry_run_out is None:
+                self._maybe_msg("UPLOADED ATTACHMENT: " + str(attachment) + "\n")
+                try:
+                    fh = open(attachment[1], 'rb')
+                    self._site_conn.upload(fh,
+                            attachment[0],
+                            description=attachment[0],
+                            ignore=True)
+                except mwclient.errors.APIError as e:
+                    raise Exception("ERROR: unable to write page: '%s'" % e.info)
+            else:
+                self._dry_run_out.write("Attachment:" + attachment[0] + "\n") # klugey, again
+
 class CSVInput():
     """Iterator class encapsulating a CSV file as input."""
     def _count_rows(self):
@@ -1200,6 +1236,7 @@ def main():
                                     "null-as-value",
                                     "cat-sort=",
                                     "extra-cats=",
+                                    "attachments=",
                                     "pare=",
                                     "config=",
                                     "show-columns"])
@@ -1217,6 +1254,7 @@ def main():
     bad_opt_seen = False
     null_as_value = False
     extra_cats = []
+    attachments = []
     cat_sort = "size"
     pare = None
     show_columns = False
@@ -1240,6 +1278,9 @@ def main():
         elif o in ("--extra-cats",):
             with open(a) as f:
                 extra_cats = [ c.strip() for c in f.readlines() ]
+        elif o in ("--attachments"):
+            with open(a) as f:
+                attachments = [ l.strip().split("|", 1) for l in f.readlines() ]
         elif o in ("--pare",):
             pare = int(a)
         elif o in ("--show-columns",):
@@ -1290,6 +1331,7 @@ def main():
         # We make extra category pages first so that they exist when making
         # the rest of the pages so they aren't red links
         wiki_sess.make_categories(extra_cats)
+        wiki_sess.upload_attachments(attachments)
 
         if csv_file is not None:
             wiki_sess.make_pages(pare, cat_sort)
