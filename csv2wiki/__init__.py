@@ -941,6 +941,11 @@ class WikiSession:
         self._save_page('Category:' + category, "")
         self._maybe_msg(("CREATED CATEGORY: \"" + category + "\"\n"))
 
+    def make_categories(self, categories):
+        """Create pages for categories CATEGORIES."""
+        for category in categories:
+            self._save_category_page(category)
+
     def make_pages(self, pare, cat_sort="size"):
         """Create a wiki page for each row in the csv.
         The csv must have at least one row of content.
@@ -1040,12 +1045,7 @@ class WikiSession:
         
         # generate the category pages
         if self._cat_col is not None:
-            for category in list(self._categories.keys()):
-                self._save_category_page(category)
-
-    def make_extra_categories(self, extra_categories):
-        for category in extra_categories:
-            self._save_category_page(category)
+            self.make_categories(self._categories.keys())
 
 class CSVInput():
     """Iterator class encapsulating a CSV file as input."""
@@ -1284,7 +1284,7 @@ def main():
     try:
         # We make extra category pages first so that they exist when making
         # the rest of the pages so they aren't red links
-        wiki_sess.make_extra_categories(extra_cats)
+        wiki_sess.make_categories(extra_cats)
         wiki_sess.make_pages(pare, cat_sort)
     except IndexError as err:
         sys.stderr.write("ERROR: '%s'\n" % err)
