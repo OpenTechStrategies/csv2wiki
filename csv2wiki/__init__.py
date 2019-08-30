@@ -673,7 +673,9 @@ class WikiSession:
         # Connect to the site.
         if self._dry_run_out is None:
             try:
-                self._site_conn = mwclient.Site(self._wiki_url.split("://"), path=self._path_to_api)
+                (scheme, host) = self._wiki_url.split("://")
+                self._site_conn = mwclient.Site(host, path=self._path_to_api, scheme=scheme)
+
             except requests.exceptions.HTTPError as err: 
                 sys.stderr.write("ERROR: failed to connect to wiki URL '%s'\n" % self._wiki_url)
                 sys.stderr.write("       Error details:\n")
