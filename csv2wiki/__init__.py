@@ -868,8 +868,8 @@ class WikiSession:
 
         return cell
 
-    def _make_page(self, row):
-        """Build and save a page based on ROW.
+    def _process_row(self, row):
+        """Build a page based on ROW.
 
         ROW's first element is the row number as a properly padded
         string, e.g., if the csv has >1000 but <10000 rows, and this
@@ -878,7 +878,15 @@ class WikiSession:
         ROW's subsequent elements are the cell values from the
         corresponding row in the csv.  In other words, the csv 
         cells are available using 1-based indexing, which matches 
-        how the user refers to column numbers in the config file."""
+        how the user refers to column numbers in the config file.
+
+        A tuple of (PAGE_TITLE, PROCESSED_ROW) is returned, so
+        that _make_page can later use that information to actually
+        make the page.  We split into two steps so we can create
+        categories first.  Part of the processing here is to
+        set up the wiki's categories so that pages can be created
+        and the TOC can be generated.
+        """
         # Splice any requested columns into the page name.
         page_title = self._title_tmpl.format(*row)
         # The input is UTF-8, but for wiki page names we
@@ -898,9 +906,6 @@ class WikiSession:
         
         # How many pages have been categorized so far?
         cats_count = sum(len(val) for val in self._categories.values())
-
-        # Crawl down the page skel, appending page content as needed.
-        page_text = ""
 
         # We wikiize the whole row once so sections can reuse
         #
@@ -929,9 +934,6 @@ class WikiSession:
             wikiized_row[self._cat_col] = \
                 self._update_category_cell(wikiized_row[self._cat_col], page_title)
 
-        for skel in self._section_structure:
-            page_text += self._do_skel(skel, wikiized_row)
-
         # If the number of categorized pages didn't change, then
         # this row (page) didn't fall into any named category, so put
         # it in the magical category whose name is the empty string.
@@ -940,6 +942,18 @@ class WikiSession:
                 self._categories[""] = [page_title]
             else:
                 self._categories[""].append(page_title)
+
+        return (page_title, wikiized_row)
+
+    def _make_page(self, page_title, wikiized_row):
+        """Create a wiki page from PAGE_TITLE and WIKIIZED_ROW.
+
+        Actually creates the wiki text, and then saves the page."""
+        # Crawl down the page skel, appending page content as needed.
+        page_text = ""
+
+        for skel in self._section_structure:
+            page_text += self._do_skel(skel, wikiized_row)
 
         self._save_page(page_title, page_text)
         self._maybe_msg(("CREATED PAGE: \"" + page_title + "\"\n"))
@@ -973,8 +987,12 @@ class WikiSession:
         how the categories on the TOC page are sorted; see the
         documentation for the '--cat-sort' option for details.
         """
+
         # read in csv
         row_num = 0
+
+        # this will actually be a list of tuples (title, wikiized_row)
+        processed_rows = []
         for row in self._csv_input:
             row_num += 1
             if pare is not None and row_num % pare != 0:
@@ -986,8 +1004,8 @@ class WikiSession:
             # use 1-based indexing, which matches how the user refers
             # to columns in the config file.
             row_num_str = self._row_num_fmt.format(row_num)
-            self._make_page([row_num_str] + row)
-    
+            processed_rows.append(self._process_row([row_num_str] + row))
+
         # create the TOC page.
         toc_text = ""
 
@@ -1025,7 +1043,7 @@ class WikiSession:
                 return fmt.format(num) + key.strip().lower()
             else:
                 return key.strip().lower()
-        
+
         if ((num_categories > 1) and (self._categories.get("") is not None)):
             if self._default_cat is not None:
                 self._categories[self._default_cat] = self._categories[""]
@@ -1048,7 +1066,20 @@ class WikiSession:
                 def_cat = "csv2wiki Miscellaneous Default Category"
                 self._categories[def_cat] = self._categories[""]
             del self._categories[""]
+        
+        # The following three sections have to go in the order here because
+        # each one links to the previous.  If you build the pages before
+        # category pages against, there are red links.  Same with TOC
 
+        # generate the category pages
+        if self._cat_col is not None:
+            self.make_categories(self._categories.keys())
+
+        # then actutally save pages for the rows
+        for wikiized_row in processed_rows:
+            self._make_page(*wikiized_row)
+    
+        # and lastly, the toc
         for cat in sorted(list(self._categories.keys()), key=categories_sorter):
             if num_categories > 1:
                 usable_cat = cat + " (" + str(len(self._categories[cat])) + ")"
@@ -1058,10 +1089,6 @@ class WikiSession:
             toc_text += "\n"
         self._save_page(self._toc_name, toc_text)
         self._maybe_msg(("CREATED TOC: \"" + self._toc_name + "\"\n"))
-        
-        # generate the category pages
-        if self._cat_col is not None:
-            self.make_categories(self._categories.keys())
 
     def upload_attachments(self, attachments):
         """
