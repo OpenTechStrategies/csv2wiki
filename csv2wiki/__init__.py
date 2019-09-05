@@ -341,6 +341,21 @@ since it's how the config file is indicated in the first place.
                        links not created via cat_col. This can be used
                        together with cat_col; they are not mutually exclusive.
 
+  --helper-page=FILE   A FILE that represents a page needed in the wiki
+                       before the csv is uploaded to ensure linking
+                       and templating work correctly.  Common use cases
+                       are Template files and general documentation files
+                       linked to on every page.  For that reason, helper
+                       pages are uploaded before the csv is processed and
+                       uploaded.
+
+                       Each FILE's first line is the title of the page
+                       to be saved on the wiki (Such as Template:Sidebar)
+                       with the remainder of the page being the file to be
+                       uploaded.
+
+                       --helper-page can be a repeated arg
+
   --attachments=FILE   A FILE that has a list of attachments to add,
                        separated by new lines.  Each line should have
                        a unique name for the attachment, like
@@ -976,6 +991,21 @@ class WikiSession:
         for category in categories:
             self._save_category_page(category)
 
+    def add_helper_pages(self, helper_pages):
+        """Create pages for HELPER_PAGES.
+
+        Each is a file location for a file that has the first line
+        being the page_title, and the rest being the file to be
+        uploaded.
+        """
+
+        for helper_page in helper_pages:
+            with open(helper_page) as f:
+                file_contents = f.readlines()
+            page_title = self._wiki_escape_page_title(file_contents[0].strip())
+            self._save_page(page_title, "\n".join(file_contents[1:]))
+            self._maybe_msg(("CREATED PAGE: \"" + page_title + "\"\n"))
+
     def make_pages(self, pare, cat_sort="size"):
         """Create a wiki page for each row in the csv.
         The csv must have at least one row of content.
@@ -1264,6 +1294,7 @@ def main():
                                     "cat-sort=",
                                     "extra-cats=",
                                     "attachments=",
+                                    "helper-page=",
                                     "pare=",
                                     "config=",
                                     "show-columns"])
@@ -1282,6 +1313,7 @@ def main():
     null_as_value = False
     extra_cats = []
     attachments = []
+    helper_pages = []
     cat_sort = "size"
     pare = None
     show_columns = False
@@ -1302,6 +1334,8 @@ def main():
             null_as_value = True
         elif o in ("--cat-sort",):
             cat_sort = a.lower()
+        elif o in ("--helper-page",):
+            helper_pages.append(a)
         elif o in ("--extra-cats",):
             with open(a) as f:
                 extra_cats = [ c.strip() for c in f.readlines() ]
@@ -1355,9 +1389,10 @@ def main():
     wiki_sess = WikiSession(config, csv_in, null_as_value, msg_out, dry_run_out)
 
     try:
-        # We make extra category pages first so that they exist when making
-        # the rest of the pages so they aren't red links
+        # We make extra category pages and helper pages  first so that they
+        # exist when making the rest of the pages so they aren't red links
         wiki_sess.make_categories(extra_cats)
+        wiki_sess.add_helper_pages(helper_pages)
         wiki_sess.upload_attachments(attachments)
 
         if csv_file is not None:
