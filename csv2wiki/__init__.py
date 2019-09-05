@@ -24,9 +24,9 @@ Convert each row of a UTF-8 CSV file to a MediaWiki page.
 
 Basic usage:
 
-  $ python3 -m csv2wiki -c CONFIG_FILE [OPTIONS] CSV_FILE
+  $ python3 -m csv2wiki -c CONFIG_FILE [OPTIONS]
 
-The common case is to pass a CSV_FILE on the command line; wiki pages
+The common case is to pass a --csv=CSV_FILE on the command line; wiki pages
 will then be created (or updated) based on the CSV contents.
 
 This script expects the cells in CSV_FILE to contain HTML snippets.
@@ -307,6 +307,8 @@ since it's how the config file is indicated in the first place.
   -c | --config FILE   Use FILE as the run-time job control file;
                        see the "Example config file" section above.
 
+  --csv=CSV_FILE       The CSV_FILE of rows to turn into wiki pages.
+
   --null-as-value      When a cell's entire content is the word
                        "null" (matched case-insensitively), then treat
                        the cell as having that literal content,
@@ -338,6 +340,16 @@ since it's how the config file is indicated in the first place.
                        This is useful when pages will contain Category
                        links not created via cat_col. This can be used
                        together with cat_col; they are not mutually exclusive.
+
+  --attachments=FILE   A FILE that has a list of attachments to add,
+                       separated by new lines.  Each line should have
+                       a unique name for the attachment, like
+                       application_5231, followed by a pipe character
+                       ('|'), and then a file location to upload.
+
+                       csv2wiki will check to see if the attachment
+                       name already exists on the wiki and will skip
+                       if it does.
 
   -q | --quiet         Be silent except for error messages.
 
@@ -665,7 +677,11 @@ class WikiSession:
                     raise Exception("ERROR: "
                                     + "invalid line in sec_map:\n" \
                                     + "       '%s'\n" % line)
-        else:  # no sec_map provided, so contruct trivial one from headers
+        elif csv_input is not None:
+            # no sec_map provided, so contruct trivial one from headers
+            #
+            # if we're operating in non csv_input mode, then we don't really
+            # need to construct a sec_map
             for i in range(1, len(csv_input.headers)):
                 self._section_structure.append(
                     WikiSectionSkel(1, "{%d}" % i, (i,)))
@@ -1047,6 +1063,32 @@ class WikiSession:
         if self._cat_col is not None:
             self.make_categories(self._categories.keys())
 
+    def upload_attachments(self, attachments):
+        """
+        Upload all the ATTACHMENTS if there is no matching file yet on
+        the server.  ATTACHMENTS needs to be a list of lists, the inner
+        being two items: the name and the file location.
+        """
+
+        current_attachment_names = [ image.imageinfo['comment'] for image in  self._site_conn.allimages() ]
+
+        for attachment in attachments:
+            if attachment[0] in current_attachment_names:
+                continue
+
+            if self._dry_run_out is None:
+                self._maybe_msg("UPLOADED ATTACHMENT: " + str(attachment) + "\n")
+                try:
+                    fh = open(attachment[1], 'rb')
+                    self._site_conn.upload(fh,
+                            attachment[0],
+                            description=attachment[0],
+                            ignore=True)
+                except mwclient.errors.APIError as e:
+                    raise Exception("ERROR: unable to write page: '%s'" % e.info)
+            else:
+                self._dry_run_out.write("Attachment:" + attachment[0] + "\n") # klugey, again
+
 class CSVInput():
     """Iterator class encapsulating a CSV file as input."""
     def _count_rows(self):
@@ -1186,6 +1228,7 @@ def main():
         opts, args = getopt.getopt(sys.argv[1:], 
                                    'hv?qd:c:',
                                    ["help",
+                                    "csv=",
                                     "version",
                                     "usage",
                                     "quiet",
@@ -1193,6 +1236,7 @@ def main():
                                     "null-as-value",
                                     "cat-sort=",
                                     "extra-cats=",
+                                    "attachments=",
                                     "pare=",
                                     "config=",
                                     "show-columns"])
@@ -1201,6 +1245,7 @@ def main():
         usage(errout=True)
         sys.exit(2)
 
+    csv_file = None
     csv_in = None
     config = None
     wiki_sess = None
@@ -1209,6 +1254,7 @@ def main():
     bad_opt_seen = False
     null_as_value = False
     extra_cats = []
+    attachments = []
     cat_sort = "size"
     pare = None
     show_columns = False
@@ -1216,6 +1262,8 @@ def main():
         if o in ("-h", "-?", "--help", "--usage",):
             usage()
             sys.exit(0)
+        elif o in ("--csv",):
+            csv_file = a
         elif o in ("-v", "--version",):
             version()
             sys.exit(0)
@@ -1230,6 +1278,9 @@ def main():
         elif o in ("--extra-cats",):
             with open(a) as f:
                 extra_cats = [ c.strip() for c in f.readlines() ]
+        elif o in ("--attachments"):
+            with open(a) as f:
+                attachments = [ l.strip().split("|", 1) for l in f.readlines() ]
         elif o in ("--pare",):
             pare = int(a)
         elif o in ("--show-columns",):
@@ -1250,6 +1301,11 @@ def main():
         usage(errout=True)
         sys.exit(2)
 
+    if show_columns and not csv_file:
+        sys.stderr.write("ERROR: --show-columns requires --csv\n")
+        usage(errout=True)
+        sys.exit(2)
+
     if show_columns and (config or pare):
         sys.stderr.write("ERROR: --show-columns precludes any other options\n")
         usage(errout=True)
@@ -1258,34 +1314,27 @@ def main():
     if bad_opt_seen:
         sys.exit(2)
 
-    if len(args) < 1:
-        sys.stderr.write("ERROR: missing CSV_FILE argument\n")
+    elif len(args) > 0:
+        sys.stderr.write("ERROR: no arguments are needed, only options; " "\n")
         sys.exit(2)
-    elif len(args) > 1:
-        sys.stderr.write("ERROR: too many arguments; "
-                         "expected only CSV_FILE\n")
-        sys.exit(2)
-    csv_in = CSVInput(args[0], config)
 
-    if show_columns:
-        csv_in.show_columns(sys.stdout)
-        sys.exit(0)
+    if csv_file is not None:
+        csv_in = CSVInput(csv_file, config)
+
+        if show_columns:
+            csv_in.show_columns(sys.stdout)
+            sys.exit(0)
 
     wiki_sess = WikiSession(config, csv_in, null_as_value, msg_out, dry_run_out)
 
-    if len(args) < 1:
-        sys.stderr.write("ERROR: missing CSV file argument\n")
-        usage(errout=True)
-        sys.exit(2)
-    elif len(args) > 1:
-        sys.stderr.write("ERROR: too many arguments\n")
-        usage(errout=True)
-        sys.exit(2)
     try:
         # We make extra category pages first so that they exist when making
         # the rest of the pages so they aren't red links
         wiki_sess.make_categories(extra_cats)
-        wiki_sess.make_pages(pare, cat_sort)
+        wiki_sess.upload_attachments(attachments)
+
+        if csv_file is not None:
+            wiki_sess.make_pages(pare, cat_sort)
     except IndexError as err:
         sys.stderr.write("ERROR: '%s'\n" % err)
         usage(errout=True)
