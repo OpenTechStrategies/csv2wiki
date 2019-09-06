@@ -99,10 +99,23 @@ Accompanying csv2wiki are two helper programs:
 
    for more information.
 
-## Related projects
+## Related tools
 
-If you like this, you might also like [csvkit](http://csvkit.rtfd.org/) and/or [xsv](https://github.com/BurntSushi/xsv).
+* [csvkit](http://csvkit.rtfd.org/) is a great suite of tools for
+  manipulating (chopping, filtering, joining, etc) CSV files.
 
-For quick exploration of a CSV file, try [csv-scope](https://github.com/OpenTechStrategies/ots-tools/blob/master/csv-scope).
+* [xsv](https://github.com/BurntSushi/xsv), written in Rust, is also "a
+  command line program for indexing, slicing, analyzing, splitting and
+  joining CSV files."
 
-To turn a CSV file into an SQL database, try [csvs-to-sqlite](https://github.com/simonw/csvs-to-sqlite).
+* [csv-scope](https://github.com/OpenTechStrategies/ots-tools/blob/master/csv-scope) 
+  is for quick exploration of a CSV file.
+
+* [tsv-utils](https://ebay.github.io/tsv-utils/) ([code](https://github.com/eBay/tsv-utils))
+  is eBay's command line toolset for working with (filtering, sampling,
+  statistics, joins, etc) large tabular data files.  TSV implies CSV,
+  since you can specify any delimiter you want -- it doesn't have to
+  be TAB.
+
+* [csvs-to-sqlite](https://github.com/simonw/csvs-to-sqlite) turns a
+  CSV file into an SQL database.
