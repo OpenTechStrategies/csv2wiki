@@ -239,7 +239,7 @@ a sole "[default]" section and the following elements in that section:
                        that value as the content of the section;
                        otherwise, use the empty string.
 
-                       In omitted, then simply don't create a section
+                       If omitted, then simply don't create a section
                        within a row's page for any column (cell) that
                        has no content; this is the default behavior.
 
