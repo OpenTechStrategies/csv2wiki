@@ -366,6 +366,22 @@ since it's how the config file is indicated in the first place.
                        name already exists on the wiki and will skip
                        if it does.
 
+  --make-non-editable  Sets the protection level on all generated pages
+                       to not allow anyone to edit them.  This prevents
+                       people from being unhappy if their changes are
+                       overwritten on later runs.
+
+                       This sets the pages to a group called 'generated'
+                       which must be set up in your mediawiki LocalSettings
+                       file and bots must be part of that group.  Something
+                       like this works:
+
+                       $wgGroupPermissions['bot']['protect'] = true;
+                       $wgRestrictionLevels[] = 'generated';
+                       $wgGroupPermissions['bot']['generated'] = true;
+                       # Give sysops the permission as well
+                       $wgGroupPermissions['sysop']['generated'] = true;
+
   -q | --quiet         Be silent except for error messages.
 
   --dry-run            Write pages to stdout instead of to the wiki.
@@ -588,7 +604,7 @@ class WikiSession:
     # based on a new config parameter 'wiki_type'.  At least the
     # _do_skel(), _make_page(), _save_page(), and methods would
     # need to be updated.
-    def __init__(self, config, csv_input, null_as_value, msg_out, dry_run_out):
+    def __init__(self, config, csv_input, null_as_value, msg_out, dry_run_out, make_non_editable):
         """Start a wiki session, taking login parameters from CONFIG and
         column header information (if needed) from CSV_INPUT.
 
@@ -612,6 +628,7 @@ class WikiSession:
         self._null_as_value      = null_as_value
         self._msg_out            = msg_out
         self._dry_run_out        = dry_run_out
+        self._make_non_editable  = make_non_editable
         self._site_conn          = None  # will be a mwclient Site object
         self._wiki_url           = config['wiki_url']
         self._username           = config['username']
@@ -800,6 +817,15 @@ class WikiSession:
             page = self._site_conn.pages[page_title]
             try:
                 page.save(text + colophon, edit_msg)
+
+                if self._make_non_editable:
+                    tokens = self._site_conn.get('query', meta='tokens')
+                    csrf_token = tokens['query']['tokens']['csrftoken']
+
+                    self._site_conn.api('protect',
+                            title=page_title,
+                            token=csrf_token,
+                            protections="edit=generated")
             except mwclient.errors.APIError as e:
                 raise Exception("ERROR: unable to write page: '%s'" % e.info)
         else:
@@ -1295,6 +1321,7 @@ def main():
                                     "usage",
                                     "quiet",
                                     "dry-run",
+                                    "make-non-editable",
                                     "null-as-value",
                                     "cat-sort=",
                                     "extra-cats=",
@@ -1316,6 +1343,7 @@ def main():
     dry_run_out = None
     bad_opt_seen = False
     null_as_value = False
+    make_non_editable = False
     extra_cats = []
     attachments = []
     helper_pages = []
@@ -1328,6 +1356,8 @@ def main():
             sys.exit(0)
         elif o in ("--csv",):
             csv_file = a
+        elif o in ("--make-non-editable,"):
+            make_non_editable = True
         elif o in ("-v", "--version",):
             version()
             sys.exit(0)
@@ -1391,7 +1421,7 @@ def main():
             csv_in.show_columns(sys.stdout)
             sys.exit(0)
 
-    wiki_sess = WikiSession(config, csv_in, null_as_value, msg_out, dry_run_out)
+    wiki_sess = WikiSession(config, csv_in, null_as_value, msg_out, dry_run_out, make_non_editable)
 
     try:
         # We make extra category pages and helper pages  first so that they
