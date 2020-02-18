@@ -45,6 +45,7 @@ a sole "[default]" section and the following elements in that section:
   password:            The wiki password corresponding to the username.
 
   toc_name:            Title for the generated Table of Contents page.
+                       If omitted, no TOC will be created.
 
   title_tmpl:          Template into which selected column values from
                        a row are substituted to create the title of
