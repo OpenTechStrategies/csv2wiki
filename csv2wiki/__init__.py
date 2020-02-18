@@ -634,7 +634,7 @@ class WikiSession:
         self._username           = config['username']
         self._password           = config['password']
         self._title_tmpl         = config['title_tmpl']
-        self._toc_name           = config['toc_name']
+        self._toc_name           = config.get('toc_name', None)
         self._cat_col            = config.get('cat_col', None)
         self._default_cat        = config.get('default_cat', None)
         self._last_cat           = config.get('last_cat', None)
@@ -1148,8 +1148,9 @@ class WikiSession:
             for pnam in sorted(self._categories[cat]):
                 toc_text += '* [[' + pnam + ']]\n'
             toc_text += "\n"
-        self._save_page(self._toc_name, toc_text)
-        self._maybe_msg(("CREATED TOC: \"" + self._toc_name + "\"\n"))
+        if self._toc_name is not None:
+            self._save_page(self._toc_name, toc_text)
+            self._maybe_msg(("CREATED TOC: \"" + self._toc_name + "\"\n"))
 
     def upload_attachments(self, attachments):
         """
