@@ -395,6 +395,10 @@ since it's how the config file is indicated in the first place.
                        convert just 1/N rows, spaced evenly across the
                        CSV file and selected deterministically.
 
+  --skip-rows N        Skip N lines after the header.  Useful when there's
+                       extra information as a secondary header, such as
+                       column type, or units.
+
   --show-columns       Just print all the column headers in the CSV
                        (that is, the values in the first row) to
                        stdout, with each column numbered.  
@@ -1195,10 +1199,12 @@ class CSVInput():
         
         return row_count
     
-    def __init__(self, csv_input, config):
+    def __init__(self, csv_input, config, skip_rows=0):
         """Prepare CSV_FILE for input, with delimiters from CONFIG.
         CONFIG is a dict returned from parse_config_file(), or else
-        it is None, in which case default config values are used."""
+        it is None, in which case default config values are used.
+
+        SKIP_ROWS is the number of lines to skip after the header."""
         self._csv_reader          = None  # will be csv.reader object
         self.headers             = []     # note: will use 1-based indexing
         self.row_count           = None  # will be num rows not counting header
@@ -1218,6 +1224,9 @@ class CSVInput():
 
         # Set column headers, using 1-based indexing.
         self.headers = [None,] + next(self._csv_reader)
+
+        for i in range(skip_rows):
+            next(self._csv_reader)
         
     def show_columns(self, out):
         """Print this CSV's column names, numbered, to OUT."""
@@ -1331,6 +1340,7 @@ def main():
                                     "helper-page=",
                                     "pare=",
                                     "config=",
+                                    "skip-rows=",
                                     "show-columns"])
     except getopt.GetoptError as err:
         sys.stderr.write("ERROR: '%s'\n" % err)
@@ -1351,6 +1361,7 @@ def main():
     helper_pages = []
     cat_sort = "size"
     pare = None
+    skip_rows = 0
     show_columns = False
     for o, a in opts:
         if o in ("-h", "-?", "--help", "--usage",):
@@ -1381,6 +1392,8 @@ def main():
                 attachments = [ l.strip().split("|", 1) for l in f.readlines() ]
         elif o in ("--pare",):
             pare = int(a)
+        elif o in ("--skip-rows",):
+            skip_rows = int(a)
         elif o in ("--show-columns",):
             show_columns = True
         elif o in ("-c", "--config",):
@@ -1417,7 +1430,7 @@ def main():
         sys.exit(2)
 
     if csv_file is not None:
-        csv_in = CSVInput(csv_file, config)
+        csv_in = CSVInput(csv_file, config, skip_rows)
 
         if show_columns:
             csv_in.show_columns(sys.stdout)
